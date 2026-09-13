@@ -1,0 +1,7 @@
+databaseChangeLog:
+  - include:
+      file: changes/1.0.0/1.0.0-interest-tags-table.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: changes/1.0.0/1.0.0-user-interest-selections-table.yaml
+      relativeToChangelogFile: true

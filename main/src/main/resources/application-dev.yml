@@ -1,0 +1,44 @@
+# Development profile. Overrides only what differs from application.yml:
+# virtual threads, Hikari pool sizing, verbose JPA / SQL logging, DevTools, and a log
+# pattern that prints traceId / spanId from the MDC populated by Micrometer Tracing.
+
+spring:
+  # Java 25 virtual threads — drops thread memory from ~1 MB to a few KB per request.
+  # Required for any blocking I/O at scale (DB, HTTP to OIDC provider, FCM/APNs).
+  threads:
+    virtual:
+      enabled: true
+
+  datasource:
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 10000
+      idle-timeout: 300000
+      max-lifetime: 900000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+        use_sql_comments: true
+
+  devtools:
+    restart:
+      enabled: true
+
+# Verbose logs for dev. Pattern includes the traceId / spanId that micrometer-tracing
+# auto-populates in the MDC — same correlation id ends up in ProblemDetail responses
+# via ProblemDetails.addTraceId(), so you can grep one id across logs + API errors.
+logging:
+  level:
+    root: WARN
+    ua.coffeetamine: WARN
+    org.springframework.security: INFO
+    org.hibernate.SQL: WARN
+    org.hibernate.orm.jdbc.bind: TRACE
+    liquibase: INFO
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level [%X{traceId:-},%X{spanId:-},%X{userId:-anonymous}] %logger{48} - %msg%n%wEx"

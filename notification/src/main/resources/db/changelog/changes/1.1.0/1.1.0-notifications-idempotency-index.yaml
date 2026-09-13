@@ -1,0 +1,22 @@
+databaseChangeLog:
+  - changeSet:
+      id: notification-1.1.0-notifications-idempotency-index
+      author: fedotiuk-dm
+      comment: |
+        Enforce notification idempotency at the DB level. The listener's existsBy check is a fast
+        path but races under concurrent at-least-once redelivery (two async deliveries both pass the
+        check before either commits → duplicate rows). Partial unique indexes make duplicates
+        impossible: at most one PING_RECEIVED per (user, ping) and one MATCH_CREATED per (user,
+        match). ping_id / match_id are mutually exclusive per type. Raw SQL — Liquibase can't express
+        a WHERE-filtered unique index natively (same as the pending-pair index).
+      changes:
+        - sql:
+            sql: >
+              create unique index uk_notifications_ping_received
+              on notifications (user_id, ping_id)
+              where type = 'PING_RECEIVED'
+        - sql:
+            sql: >
+              create unique index uk_notifications_match_created
+              on notifications (user_id, match_id)
+              where type = 'MATCH_CREATED'

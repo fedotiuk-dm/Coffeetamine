@@ -1,0 +1,45 @@
+databaseChangeLog:
+  - changeSet:
+      id: ping-1.1.0-user-matches-directional-pair
+      author: fedotiuk-dm
+      comment: |
+        Remodel user_matches from a sorted (low/high) participant pair to a directional
+        (initiator/recipient) pair. "One match per unordered pair, any direction" is preserved by an
+        expression unique index on least()/greatest() — Liquibase can't express that natively, so raw
+        SQL (consistent with uk_pings_pending_pair). Forward-only evolution of the 1.0.0 baseline.
+      changes:
+        - renameColumn:
+            tableName: user_matches
+            oldColumnName: participant_low_id
+            newColumnName: initiator_id
+            columnDataType: uuid
+        - renameColumn:
+            tableName: user_matches
+            oldColumnName: participant_high_id
+            newColumnName: recipient_id
+            columnDataType: uuid
+        - dropUniqueConstraint:
+            tableName: user_matches
+            constraintName: uk_user_matches_participants
+        - dropIndex:
+            tableName: user_matches
+            indexName: idx_user_matches_participant_low
+        - dropIndex:
+            tableName: user_matches
+            indexName: idx_user_matches_participant_high
+        - sql:
+            sql: >
+              create unique index uk_user_matches_pair
+              on user_matches (least(initiator_id, recipient_id), greatest(initiator_id, recipient_id))
+        - createIndex:
+            tableName: user_matches
+            indexName: idx_user_matches_initiator
+            columns:
+              - column:
+                  name: initiator_id
+        - createIndex:
+            tableName: user_matches
+            indexName: idx_user_matches_recipient
+            columns:
+              - column:
+                  name: recipient_id

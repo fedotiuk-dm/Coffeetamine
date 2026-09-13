@@ -1,0 +1,64 @@
+databaseChangeLog:
+  - changeSet:
+      id: user-1.0.0-create-user-profiles
+      author: fedotiuk-dm
+      comment: |
+        User profile table keyed by the internal app_user_id UUID resolved from OIDC
+        (issuer, subject). No FK to a users table — external identity is mapped in
+        external_identities and enforced at the application layer.
+      preConditions:
+        - onFail: MARK_RAN
+        - not:
+            - tableExists:
+                tableName: user_profiles
+      changes:
+        - createTable:
+            tableName: user_profiles
+            columns:
+              - column:
+                  name: user_id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: name
+                  type: varchar(50)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: avatar_url
+                  type: varchar(500)
+              - column:
+                  name: about
+                  type: varchar(500)
+              - column:
+                  name: onboarding_completed
+                  type: boolean
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: version
+                  type: bigint
+                  defaultValueNumeric: "0"
+                  constraints:
+                    nullable: false
+        - createIndex:
+            indexName: idx_user_profiles_onboarding_completed
+            tableName: user_profiles
+            columns:
+              - column:
+                  name: onboarding_completed

@@ -1,0 +1,149 @@
+---
+components:
+  schemas:
+    Interest:
+      type: object
+      description: A single tag in the global interest catalog
+      required:
+        - id
+        - code
+        - displayName
+        - category
+        - isActive
+        - sortOrder
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        code:
+          type: string
+          minLength: 1
+          maxLength: 50
+          pattern: "^[A-Z0-9_]+$"
+          description: Stable machine identifier (e.g., SPECIALTY_COFFEE)
+          example: "SPECIALTY_COFFEE"
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 80
+          description: Human-readable label shown in the UI
+          example: "Specialty Coffee"
+        category:
+          type: string
+          minLength: 1
+          maxLength: 50
+          pattern: "^[A-Z0-9_]+$"
+          description: Category code used for grouping in the catalog UI (e.g., COFFEE, MUSIC, FOOD, OUTDOORS)
+          example: "COFFEE"
+        isActive:
+          type: boolean
+          description: False when the tag is soft-deleted — hidden from new selections but kept for existing users
+        sortOrder:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 2147483647
+          description: Sort order within the category (lower = first)
+      additionalProperties: false
+
+    InterestListResponse:
+      allOf:
+        - $ref: "common.yaml#/components/schemas/PageResponse"
+        - type: object
+          additionalProperties: false
+          required:
+            - content
+          properties:
+            content:
+              type: array
+              maxItems: 100
+              description: Page content with interest tags
+              items:
+                $ref: "#/components/schemas/Interest"
+
+    CreateInterestRequest:
+      type: object
+      required:
+        - code
+        - displayName
+        - category
+      properties:
+        code:
+          type: string
+          minLength: 1
+          maxLength: 50
+          pattern: "^[A-Z0-9_]+$"
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 80
+        category:
+          type: string
+          minLength: 1
+          maxLength: 50
+          pattern: "^[A-Z0-9_]+$"
+        sortOrder:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 2147483647
+          description: |
+            Sort order within the category. Omit to auto-assign the next available slot
+            (current max + 1).
+      additionalProperties: false
+
+    UpdateInterestRequest:
+      type: object
+      description: Partial update of an interest tag. Omit fields to leave unchanged. `code` is immutable.
+      properties:
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 80
+        category:
+          type: string
+          minLength: 1
+          maxLength: 50
+          pattern: "^[A-Z0-9_]+$"
+        isActive:
+          type: boolean
+        sortOrder:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 2147483647
+      additionalProperties: false
+
+    UserInterestsResponse:
+      type: object
+      description: A user's selected interest tags. Order is preserved from the last replace call.
+      required:
+        - userId
+        - interests
+      properties:
+        userId:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        interests:
+          type: array
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/Interest"
+      additionalProperties: false
+
+    UpdateUserInterestsRequest:
+      type: object
+      required:
+        - interestIds
+      properties:
+        interestIds:
+          type: array
+          minItems: 1
+          maxItems: 20
+          description: Full replacement list of interest tag IDs (order preserved)
+          items:
+            type: string
+            format: uuid
+      additionalProperties: false

@@ -1,0 +1,45 @@
+databaseChangeLog:
+  - changeSet:
+      id: mood-board-1.0.0-create-mood-boards
+      author: fedotiuk-dm
+      comment: Mood board aggregate keyed by internal app_user_id UUID. Images stored as a JSONB array
+        (write-once-replace bag of 6 Unsplash refs, never queried by image content).
+      preConditions:
+        - onFail: MARK_RAN
+        - not:
+            - tableExists:
+                tableName: mood_boards
+      changes:
+        - createTable:
+            tableName: mood_boards
+            columns:
+              - column:
+                  name: user_id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: images
+                  type: jsonb
+                  defaultValueComputed: "'[]'::jsonb"
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: version
+                  type: bigint
+                  defaultValueNumeric: "0"
+                  constraints:
+                    nullable: false

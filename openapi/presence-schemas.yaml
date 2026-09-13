@@ -1,0 +1,92 @@
+---
+components:
+  schemas:
+    PresenceStatus:
+      type: string
+      enum:
+        - READY
+        - NOT_READY
+      description: |
+        READY  — eligible for discovery / map visibility.
+        NOT_READY — hidden from discovery (default).
+
+    PresenceResponse:
+      type: object
+      description: |
+        Current presence for the authenticated user. `location` is jittered server-side
+        and never reflects the raw GPS submitted by the client.
+      required:
+        - userId
+        - status
+        - updatedAt
+      properties:
+        userId:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        status:
+          $ref: "#/components/schemas/PresenceStatus"
+        mood:
+          type: string
+          maxLength: 200
+          description: Free-text mood / vibe note shown next to the user's pin
+          example: "Need a flat white and a chat about Murakami"
+        location:
+          $ref: "common.yaml#/components/schemas/GeoCoordinates"
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last presence update
+      additionalProperties: false
+
+    UpdatePresenceRequest:
+      type: object
+      description: |
+        Full presence state — PUT semantics. `status` is the desired state and is always
+        required. `mood` absent means "no mood" (cleared); when present it must be a
+        non-blank string (the API rejects empty strings — there is no magic "clear"
+        sentinel).
+
+        **Conditional requirement:** when `status` is `READY` the raw GPS pair
+        (`rawLatitude` + `rawLongitude`) **must** both be present; omitting either
+        produces a `400` with `errorCode = PRES_002`. When `status` is `NOT_READY` the
+        coordinates are ignored if supplied.
+
+        Equivalent JSON Schema 2020-12 (OpenAPI 3.1) dependent-required constraint is
+        preserved below as a vendor extension for tooling that supports it.
+      required:
+        - status
+      x-dependent-required:
+        # When upgrading to OpenAPI 3.1, replace this with the standard
+        # `dependentRequired` keyword + a discriminator on `status`. Until then,
+        # backend enforces this rule and emits PRES_002 on violation.
+        READY:
+          - rawLatitude
+          - rawLongitude
+      properties:
+        status:
+          $ref: "#/components/schemas/PresenceStatus"
+        mood:
+          type: string
+          minLength: 1
+          maxLength: 200
+          example: "Need a flat white and a chat about Murakami"
+        rawLatitude:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+          description: |
+            Raw GPS latitude — never returned by the API; server jitters before persisting.
+            Required when `status == READY`.
+          example: 50.4501
+        rawLongitude:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+          description: |
+            Raw GPS longitude — never returned by the API; server jitters before persisting.
+            Required when `status == READY`.
+          example: 30.5234
+      additionalProperties: false

@@ -1,0 +1,65 @@
+databaseChangeLog:
+  - changeSet:
+      id: presence-1.0.0-create-user-presences
+      author: fedotiuk-dm
+      comment: |
+        Presence row keyed by internal app_user_id UUID. Coordinates stored here are already
+        jittered and must never contain raw GPS submitted by the client.
+      preConditions:
+        - onFail: MARK_RAN
+        - not:
+            - tableExists:
+                tableName: user_presences
+      changes:
+        - createTable:
+            tableName: user_presences
+            columns:
+              - column:
+                  name: user_id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: status
+                  type: varchar(20)
+                  defaultValue: NOT_READY
+                  constraints:
+                    nullable: false
+              - column:
+                  name: mood
+                  type: varchar(200)
+              - column:
+                  name: latitude
+                  type: double precision
+              - column:
+                  name: longitude
+                  type: double precision
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: version
+                  type: bigint
+                  defaultValueNumeric: "0"
+                  constraints:
+                    nullable: false
+        - createIndex:
+            indexName: idx_user_presences_ready_location
+            tableName: user_presences
+            columns:
+              - column:
+                  name: status
+              - column:
+                  name: latitude
+              - column:
+                  name: longitude

@@ -1,0 +1,18 @@
+# Keep the build context lean. Anything matched here is NOT sent to the Docker daemon.
+.git
+.gitignore
+.idea
+*.iml
+.mvn
+target
+**/target
+docker-compose*.yml
+.dockerignore
+Dockerfile
+README.md
+CLAUDE.md
+PRODUCT_CONCEPT.md
+architecture
+.vscode
+.DS_Store
+*.log

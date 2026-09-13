@@ -1,0 +1,53 @@
+# Dev image for Coffeetamine backend — hot reload via Spring DevTools.
+#
+# Pattern (mirrors ../BoostingJavaSpringNextjs/backend/Dockerfile.dev — same Liberica
+# JDK on Alpaquita musl as the production multi-stage build, so dev and prod share
+# one JDK vendor):
+#   - Liberica JDK 25 + Apache Maven (pinned). The project does not ship `mvnw`, so
+#     Maven is installed from the official binary.
+#   - Source is NOT baked into the image. docker-compose bind-mounts `./` at /app
+#     and a named volume at /home/appuser/.m2 so the local Maven cache persists.
+#   - Entrypoint runs `mvn install` (incremental) then `spring-boot:run` with
+#     DevTools + JDWP. Recompile inside the IDE (Ctrl+F9 / Build → Recompile) →
+#     bind mount surfaces fresh .class files → DevTools restarts the context.
+#
+# Not used by DevOps — see `Dockerfile` for the production multi-stage build.
+
+FROM bellsoft/liberica-runtime-container:jdk-25-musl
+
+ARG MVN_VER=3.9.9
+ARG MVN_URL=https://archive.apache.org/dist/maven/maven-3
+ARG MVN_TGZ=apache-maven-${MVN_VER}-bin.tar.gz
+
+ENV MAVEN_HOME=/opt/maven \
+    PATH=/opt/maven/bin:$PATH \
+    MAVEN_OPTS="-Xmx1024m -Dorg.slf4j.simpleLogger.defaultLogLevel=WARN" \
+    SPRING_PROFILES_ACTIVE=dev
+
+RUN apk add --no-cache bash curl tar \
+    && cd /tmp \
+    && curl -fsSL -o maven.tar.gz        "${MVN_URL}/${MVN_VER}/binaries/${MVN_TGZ}" \
+    && curl -fsSL -o maven.tar.gz.sha512 "${MVN_URL}/${MVN_VER}/binaries/${MVN_TGZ}.sha512" \
+    && echo "$(cat maven.tar.gz.sha512)  maven.tar.gz" | sha512sum -c - \
+    && mkdir -p /opt/maven \
+    && tar -xzf maven.tar.gz -C /opt/maven --strip-components=1 \
+    && rm maven.tar.gz maven.tar.gz.sha512 \
+    && mvn -v \
+    && addgroup -g 1000 appgroup \
+    && adduser -u 1000 -G appgroup -s /bin/bash -D appuser
+
+WORKDIR /app
+
+# Pre-create the Maven cache dir with appuser ownership BEFORE the named volume
+# attaches at runtime — Docker initialises a fresh named volume with the ownership
+# of the directory it shadows, so this prevents the "can't create local repository"
+# permission error when we run as uid 1000.
+RUN mkdir -p /home/appuser/.m2 /app \
+    && chown -R appuser:appgroup /home/appuser /app
+
+USER appuser
+
+# Application | JDWP debug | LiveReload
+EXPOSE 8090 5005 35729
+
+ENTRYPOINT ["/app/docker-entrypoint.dev.sh"]

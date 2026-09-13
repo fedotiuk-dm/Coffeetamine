@@ -1,0 +1,93 @@
+---
+components:
+  schemas:
+    NearbyUser:
+      type: object
+      description: Map-pin payload for a single nearby Ready user
+      required:
+        - userId
+        - name
+        - location
+        - compatibilityScore
+      properties:
+        userId:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+        avatarUrl:
+          type: string
+          maxLength: 500
+        location:
+          $ref: "common.yaml#/components/schemas/GeoCoordinates"
+        mood:
+          type: string
+          maxLength: 200
+          description: Optional mood comment shown next to the pin
+        compatibilityScore:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 100
+          description: Interest-overlap score normalised to 1..100, relative to the caller
+        distanceMeters:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 5000
+          description: Approximate distance from caller, derived from jittered coordinates
+      additionalProperties: false
+
+    NearbyUserListResponse:
+      allOf:
+        - $ref: "common.yaml#/components/schemas/PageResponse"
+        - type: object
+          additionalProperties: false
+          required:
+            - content
+          properties:
+            content:
+              type: array
+              maxItems: 100
+              items:
+                $ref: "#/components/schemas/NearbyUser"
+
+    DiscoveryUserDetailResponse:
+      type: object
+      description: |
+        Aggregated snapshot returned when the caller taps a pin or opens a user from the
+        nearby list. Combines profile + interests + mood board + presence + compatibility.
+      required:
+        - profile
+        - interests
+        - moodBoard
+        - presence
+        - compatibilityScore
+      properties:
+        profile:
+          $ref: "user-schemas.yaml#/components/schemas/PublicUserProfileResponse"
+        interests:
+          type: array
+          maxItems: 20
+          items:
+            $ref: "interests-schemas.yaml#/components/schemas/Interest"
+        moodBoard:
+          $ref: "mood-board-schemas.yaml#/components/schemas/MoodBoardResponse"
+        presence:
+          $ref: "presence-schemas.yaml#/components/schemas/PresenceResponse"
+        compatibilityScore:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 100
+          description: Interest-overlap score relative to the caller
+        distanceMeters:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 5000
+          description: Approximate distance from caller (omitted if caller has no location)
+      additionalProperties: false

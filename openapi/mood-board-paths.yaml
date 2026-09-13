@@ -1,0 +1,114 @@
+---
+openapi: 3.0.4
+info:
+  title: Coffeetamine Mood Board API
+  description: |
+    Per-user mood board of exactly 6 Unsplash image references. Binaries are never
+    proxied — only URL + Unsplash photo ID + attribution are stored.
+  version: 1.0.0
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://localhost:8443
+    description: Local development server
+
+tags:
+  - name: mood-board
+
+paths:
+  /api/users/me/mood-board:
+    get:
+      tags:
+        - mood-board
+      summary: Get my mood board
+      description: |
+        Returns the authenticated user's 6-image mood board. If onboarding has not yet
+        been completed, may return fewer than 6 — clients should treat <6 as "not set".
+      operationId: getMyMoodBoard
+      responses:
+        "200":
+          description: My mood board
+          content:
+            application/json:
+              schema:
+                $ref: "mood-board-schemas.yaml#/components/schemas/MoodBoardResponse"
+        "401":
+          $ref: "common.yaml#/components/responses/Unauthorized"
+        default:
+          $ref: "common.yaml#/components/responses/default"
+    put:
+      tags:
+        - mood-board
+      summary: Replace my mood board
+      description: |
+        Atomically replaces all 6 mood-board images. The request MUST contain exactly 6
+        images. Onboarding must be completed first — returns **404 with `errorCode:
+        USER_002`** otherwise.
+      operationId: replaceMyMoodBoard
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "mood-board-schemas.yaml#/components/schemas/UpdateMoodBoardRequest"
+      responses:
+        "200":
+          description: Updated mood board
+          content:
+            application/json:
+              schema:
+                $ref: "mood-board-schemas.yaml#/components/schemas/MoodBoardResponse"
+        "400":
+          $ref: "common.yaml#/components/responses/BadRequest"
+        "401":
+          $ref: "common.yaml#/components/responses/Unauthorized"
+        "404":
+          description: Onboarding not yet completed (errorCode USER_002)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "common.yaml#/components/schemas/ErrorResponse"
+            application/json:
+              schema:
+                $ref: "common.yaml#/components/schemas/ErrorResponse"
+        default:
+          $ref: "common.yaml#/components/responses/default"
+
+  /api/users/{userId}/mood-board:
+    get:
+      tags:
+        - mood-board
+      summary: Get user's mood board
+      description: "Public view of another user's mood board. **Authorization**: any authenticated user."
+      operationId: getUserMoodBoard
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            example: "123e4567-e89b-12d3-a456-426614174000"
+      responses:
+        "200":
+          description: User's mood board
+          content:
+            application/json:
+              schema:
+                $ref: "mood-board-schemas.yaml#/components/schemas/MoodBoardResponse"
+        "401":
+          $ref: "common.yaml#/components/responses/Unauthorized"
+        "404":
+          $ref: "common.yaml#/components/responses/NotFound"
+        default:
+          $ref: "common.yaml#/components/responses/default"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      $ref: "common.yaml#/components/securitySchemes/bearerAuth"
+
+security:
+  - bearerAuth: []

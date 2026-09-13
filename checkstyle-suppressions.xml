@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC
+        "-//Checkstyle//DTD SuppressionFilter Configuration 1.2//EN"
+        "https://checkstyle.org/dtds/suppressions_1_2.dtd">
+
+<suppressions>
+    <!-- Tests — no checkstyle enforcement -->
+    <suppress checks=".*" files=".*[\\/]src[\\/]test[\\/].*\.java"/>
+
+    <!-- Generated code (OpenAPI, MapStruct, etc.) -->
+    <suppress checks=".*" files=".*[\\/]target[\\/].*\.java"/>
+
+    <!-- Spring @Configuration classes — Javadoc not required -->
+    <suppress checks="JavadocType" files=".*Config\.java"/>
+
+    <!-- MapStruct mappers — Javadoc not required (self-documenting interfaces) -->
+    <suppress checks="JavadocType" files=".*[\\/]mapper[\\/].*\.java"/>
+
+    <!-- JPA entities — constructor param count can exceed limit (all-args from Lombok) -->
+    <suppress checks="ParameterNumber" files=".*[\\/]model[\\/].*\.java"/>
+
+    <!-- Properties classes — simple data holders -->
+    <suppress checks="JavadocType" files=".*Properties\.java"/>
+
+    <!-- Security config — long declarative path matchers are unavoidable -->
+    <suppress checks="MethodLength" files=".*Config\.java"/>
+</suppressions>

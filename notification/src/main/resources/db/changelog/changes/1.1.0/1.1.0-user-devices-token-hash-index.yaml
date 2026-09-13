@@ -1,0 +1,22 @@
+databaseChangeLog:
+  - changeSet:
+      id: notification-1.1.0-hash-device-token-index
+      author: fedotiuk-dm
+      comment: |
+        Swap user_devices uniqueness from a plain btree over (app_user_id, platform, token) to one
+        hashed on the token. token is varchar(4096) and a plain btree index row can exceed Postgres'
+        ~2704-byte limit, so a long token would fail the INSERT. md5(token) keeps the index row small
+        while preserving one-device-per-(user, platform, token). Forward-only fix for the constraint
+        created in notification-1.1.0-normalize-user-devices (which stays untouched). Raw SQL —
+        Liquibase can't express an expression index natively (same as uk_pings_pending_pair).
+      preConditions:
+        - onFail: MARK_RAN
+        - tableExists:
+            tableName: user_devices
+      changes:
+        - sql:
+            splitStatements: true
+            sql: |
+              ALTER TABLE user_devices DROP CONSTRAINT IF EXISTS uk_user_devices_user_platform_token;
+              CREATE UNIQUE INDEX IF NOT EXISTS uk_user_devices_user_platform_token
+                ON user_devices (app_user_id, platform, md5(token));

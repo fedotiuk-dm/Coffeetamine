@@ -1,0 +1,48 @@
+databaseChangeLog:
+  - changeSet:
+      id: notification-1.0.0-create-user-devices
+      author: fedotiuk-dm
+      comment: |
+        One row per internal app user holding push-token entries as a JSONB array. Each
+        entry: { id, platform: FCM|APNS, token, appVersion, registeredAt }.
+        Register / unregister mutate the array atomically.
+      preConditions:
+        - onFail: MARK_RAN
+        - not:
+            - tableExists:
+                tableName: user_devices
+      changes:
+        - createTable:
+            tableName: user_devices
+            columns:
+              - column:
+                  name: user_id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_user_devices
+                    nullable: false
+              - column:
+                  name: devices
+                  type: jsonb
+                  defaultValueComputed: "'[]'::jsonb"
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: version
+                  type: bigint
+                  defaultValueNumeric: "0"
+                  constraints:
+                    nullable: false

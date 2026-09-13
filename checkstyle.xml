@@ -1,0 +1,181 @@
+<?xml version="1.0"?>
+<!DOCTYPE module PUBLIC
+          "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
+          "https://checkstyle.org/dtds/configuration_1_3.dtd">
+
+<!--
+    Checkstyle configuration for Game Boosting Platform.
+
+    Formatting (imports, whitespace, braces, indentation) is handled by
+    Spotless + Google Java Format — checkstyle focuses on what Spotless cannot:
+    naming, complexity, anti-patterns, and Spring Boot conventions.
+-->
+
+<module name="Checker">
+    <property name="charset" value="UTF-8"/>
+    <property name="severity" value="warning"/>
+    <property name="fileExtensions" value="java"/>
+
+    <!-- Exclude generated code and build output -->
+    <module name="BeforeExecutionExclusionFileFilter">
+        <property name="fileNamePattern"
+            value="(.*[\\/]target[\\/].*|.*[\\/]generated-sources[\\/].*|.*[\\/]generated-test-sources[\\/].*|.*[\\/]bin[\\/].*)$"/>
+    </module>
+
+    <!-- Suppressions -->
+    <module name="SuppressionFilter">
+        <property name="file" value="${checkstyle.suppressions.file}" default="checkstyle-suppressions.xml"/>
+    </module>
+
+    <module name="SuppressWarningsFilter"/>
+
+    <!-- File-level checks -->
+    <module name="NewlineAtEndOfFile">
+        <property name="lineSeparator" value="lf"/>
+    </module>
+
+    <module name="FileTabCharacter">
+        <property name="eachLine" value="true"/>
+    </module>
+
+    <!-- Anti-patterns -->
+    <module name="RegexpSingleline">
+        <property name="format" value="System\.(out|err)\.print"/>
+        <message key="regexp.exceeded" value="Use SLF4J logging instead of System.out/err."/>
+    </module>
+
+    <module name="RegexpSingleline">
+        <property name="format" value="\.printStackTrace\(\)"/>
+        <message key="regexp.exceeded" value="Use proper logging instead of printStackTrace()."/>
+    </module>
+
+    <!-- Comment hygiene — code is self-documenting; Javadoc on public API + WHY-comments only. -->
+    <module name="RegexpSingleline">
+        <property name="format" value="//\s*(──|═══|———|\*\*\*|####|====|----)"/>
+        <message key="regexp.exceeded"
+            value="Decorative section-banner comments are noise. Split the class instead, or rely on the method/field name."/>
+    </module>
+
+    <module name="RegexpSingleline">
+        <property name="format" value="/\*\*\s*(Gets?|Sets?|Returns?)\s+(the\s+)?[a-zA-Z]+\s*\.?\s*\*/"/>
+        <message key="regexp.exceeded"
+            value="Trivial getter/setter Javadoc adds no information — delete it or document the contract."/>
+    </module>
+
+    <module name="RegexpSingleline">
+        <property name="format" value="\*\s*@(author|version)\b"/>
+        <message key="regexp.exceeded"
+            value="@author/@version belong in git history, not in source comments."/>
+    </module>
+
+    <module name="RegexpSingleline">
+        <property name="format" value="//\s*(TODO|FIXME|XXX|HACK)\b"/>
+        <message key="regexp.exceeded"
+            value="TODO/FIXME/XXX/HACK comments rot. Open a ticket or fix it now."/>
+    </module>
+
+
+    <module name="TreeWalker">
+        <module name="SuppressWarningsHolder"/>
+
+        <!-- === Naming === -->
+        <module name="TypeName">
+            <property name="format" value="^[A-Z][a-zA-Z0-9]*$"/>
+        </module>
+        <module name="MethodName">
+            <property name="format" value="^[a-z][a-zA-Z0-9]*$"/>
+        </module>
+        <module name="ConstantName">
+            <!-- Allow 'log' for Lombok @Slf4j and 'serialVersionUID' -->
+            <property name="format" value="^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$|^log$|^serialVersionUID$"/>
+        </module>
+        <module name="MemberName">
+            <property name="format" value="^[a-z][a-zA-Z0-9]*$"/>
+        </module>
+        <module name="ParameterName">
+            <property name="format" value="^[a-z][a-zA-Z0-9]*$"/>
+        </module>
+        <module name="LocalVariableName">
+            <property name="format" value="^[a-z][a-zA-Z0-9]*$|^_$"/>
+        </module>
+        <module name="LambdaParameterName">
+            <property name="format" value="^[a-z][a-zA-Z0-9]*$|^_$"/>
+        </module>
+        <module name="ClassTypeParameterName">
+            <property name="format" value="^[A-Z][a-zA-Z0-9]*$"/>
+        </module>
+        <module name="MethodTypeParameterName">
+            <property name="format" value="^[A-Z][a-zA-Z0-9]*$"/>
+        </module>
+        <module name="RecordTypeParameterName">
+            <property name="format" value="^[A-Z][a-zA-Z0-9]*$"/>
+        </module>
+        <module name="PackageName">
+            <property name="format" value="^[a-z]+(\.[a-z0-9]+)*$"/>
+        </module>
+        <module name="StaticVariableName">
+            <property name="format" value="^[a-z][a-zA-Z0-9]*$"/>
+        </module>
+
+        <!-- === Imports (structural, not order — Spotless handles ordering) === -->
+        <module name="AvoidStarImport"/>
+        <module name="RedundantImport"/>
+        <module name="UnusedImports">
+            <property name="processJavadoc" value="false"/>
+        </module>
+        <module name="IllegalImport">
+            <property name="illegalPkgs" value="sun"/>
+        </module>
+
+        <!-- === Complexity === -->
+        <module name="MethodLength">
+            <property name="max" value="80"/>
+            <property name="tokens" value="METHOD_DEF, CTOR_DEF, COMPACT_CTOR_DEF"/>
+        </module>
+        <module name="ParameterNumber">
+            <property name="max" value="8"/>
+            <property name="tokens" value="METHOD_DEF, CTOR_DEF"/>
+            <property name="ignoreOverriddenMethods" value="true"/>
+        </module>
+        <module name="NestedIfDepth">
+            <property name="max" value="3"/>
+        </module>
+        <module name="NestedTryDepth">
+            <property name="max" value="2"/>
+        </module>
+
+        <!-- === Code quality === -->
+        <module name="OneTopLevelClass"/>
+        <module name="OneStatementPerLine"/>
+        <module name="MultipleVariableDeclarations"/>
+        <module name="ArrayTypeStyle"/>
+        <module name="MissingSwitchDefault"/>
+        <module name="DefaultComesLast">
+            <property name="skipIfLastAndSharedWithCase" value="true"/>
+        </module>
+        <module name="FallThrough"/>
+        <module name="UpperEll"/>
+        <module name="ModifierOrder"/>
+        <module name="NoFinalizer"/>
+        <module name="EmptyStatement"/>
+        <module name="EqualsHashCode"/>
+        <module name="SimplifyBooleanExpression"/>
+        <module name="StringLiteralEquality"/>
+
+        <!-- === Javadoc (public API only, excluding records — they are self-documenting) === -->
+        <module name="JavadocType">
+            <property name="scope" value="public"/>
+            <property name="tokens" value="CLASS_DEF, INTERFACE_DEF, ENUM_DEF, ANNOTATION_DEF"/>
+        </module>
+        <module name="JavadocStyle">
+            <property name="checkFirstSentence" value="false"/>
+            <property name="checkHtml" value="false"/>
+            <property name="checkEmptyJavadoc" value="true"/>
+        </module>
+        <module name="AtclauseOrder">
+            <property name="tagOrder" value="@param, @return, @throws, @deprecated, @see, @since"/>
+        </module>
+        <module name="JavadocMissingLeadingAsterisk"/>
+        <module name="JavadocMissingWhitespaceAfterAsterisk"/>
+    </module>
+</module>

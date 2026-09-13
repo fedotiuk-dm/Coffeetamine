@@ -1,0 +1,380 @@
+---
+openapi: 3.0.4
+info:
+  title: Coffeetamine Common Components
+  version: 1.0.0
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+paths: {}
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        OIDC JWT, sent as `Authorization: Bearer <token>`.
+
+        **Production flow (mobile):** OIDC Authorization Code + PKCE through the
+        configured provider (ZITADEL, Keycloak, or another compliant issuer). Google
+        federation, if used, is configured inside that provider — the mobile app never
+        talks to Google directly. Full flow:
+        `architecture/MOBILE_OIDC_GOOGLE.md`.
+
+        **Dev:** `mock-oauth2-server` mints signed JWTs for local testing. Get a token
+        from the host with `make token` (USER) or `make token-admin` (USER + ADMIN).
+        Paste the raw token into Swagger UI's *Authorize* dialog — no `Bearer ` prefix.
+
+        **Identity:** JWT `sub` is an opaque external subject. The backend maps
+        `(iss, sub)` to an internal `app_user_id` UUID via `external_identities`.
+        Every authenticated principal gets `ROLE_USER`; `ROLE_ADMIN` is assigned by
+        backend config (`APP_ADMIN_EMAILS`), not by provider role claims.
+
+  parameters:
+    PageNumber:
+      name: page
+      in: query
+      description: Page number (0-based)
+      schema:
+        type: integer
+        format: int32
+        minimum: 0
+        maximum: 2147483647
+        default: 0
+
+    PageSize:
+      name: size
+      in: query
+      description: Page size (number of items per page)
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+        maximum: 100
+        default: 20
+
+    Sort:
+      name: sort
+      in: query
+      description: |
+        Sort parameters. Format: "property,direction" (e.g., "name,asc" or "createdAt,desc").
+        Multiple sorts can be specified: sort=name,asc&sort=createdAt,desc
+        Direction can be "asc" (ascending) or "desc" (descending). Default: "asc".
+        Compatible with Spring PageableArgumentResolver.
+      style: form
+      explode: true
+      schema:
+        type: array
+        maxItems: 10
+        items:
+          type: string
+          maxLength: 100
+          pattern: "^[a-zA-Z0-9_]+,(asc|desc)$"
+        example:
+          - createdAt,desc
+
+    Search:
+      name: search
+      in: query
+      description: Free text search
+      schema:
+        type: string
+        maxLength: 255
+      example: "coffee"
+
+  responses:
+    # All error responses are advertised under both `application/problem+json`
+    # (RFC 9457 — the actual `Content-Type` emitted by ProblemDetails /
+    # ProblemDetailSecurityHandler) and `application/json` (so openapi-generator
+    # can auto-generate example response payloads, which it only supports for
+    # the latter). The schema is identical — clients can parse either.
+    BadRequest:
+      description: Bad request
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Unauthorized access
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: Forbidden access
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Resource not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Conflict:
+      description: Resource conflict
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    TooManyRequests:
+      description: Too many requests
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotAcceptable:
+      description: Not Acceptable
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    UnsupportedMediaType:
+      description: Unsupported Media Type
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    default:
+      description: Unexpected error
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+    GeoCoordinates:
+      type: object
+      description: |
+        Geographic coordinates. When returned from public-facing endpoints, latitude and
+        longitude are jittered server-side per the location-imprecision invariant — they
+        never reflect raw GPS.
+      required:
+        - latitude
+        - longitude
+      properties:
+        latitude:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+          example: 50.4501
+        longitude:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+          example: 30.5234
+      additionalProperties: false
+
+    PageResponse:
+      type: object
+      description: Pagination metadata (Spring Page format)
+      required:
+        - totalElements
+        - totalPages
+        - size
+        - number
+      properties:
+        totalElements:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Total number of elements across all pages
+          example: 100
+        totalPages:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Total number of pages available
+          example: 5
+        last:
+          type: boolean
+          description: True if this is the last page
+        size:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 100
+          description: Number of items per page
+          example: 20
+        number:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Current page number (0-based)
+          example: 0
+        numberOfElements:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Number of elements in current page
+        first:
+          type: boolean
+          description: True if this is the first page
+        empty:
+          type: boolean
+          description: True if page content is empty
+
+    ProblemDetailValidationError:
+      type: object
+      description: Field-level validation error in RFC 9457 Problem Detail responses
+      required:
+        - field
+        - message
+        - code
+      properties:
+        field:
+          type: string
+          maxLength: 200
+          description: Field, parameter, or object name that failed validation
+          example: name
+        message:
+          type: string
+          maxLength: 500
+          description: Human-readable validation failure message
+          example: "must not be blank"
+        code:
+          type: string
+          maxLength: 200
+          description: Bean Validation or Spring validation code
+          example: "NotBlank"
+      additionalProperties: false
+
+    ErrorResponse:
+      type: object
+      description: RFC 9457 Problem Detail response format
+      required:
+        - status
+        - title
+        - detail
+      properties:
+        type:
+          type: string
+          maxLength: 500
+          format: uri
+          description: URI reference identifying the problem type
+          example: "https://api.coffeetamine.ua/errors/validation"
+        title:
+          type: string
+          maxLength: 200
+          description: Short human-readable summary of the problem
+          example: "Validation Error"
+        status:
+          type: integer
+          format: int32
+          minimum: 100
+          maximum: 599
+          description: HTTP status code
+          example: 400
+        detail:
+          type: string
+          maxLength: 2000
+          description: Human-readable explanation specific to this occurrence
+          example: "Validation failed"
+        instance:
+          type: string
+          maxLength: 500
+          description: URI reference identifying the specific occurrence
+          example: "/api/users/me"
+        errorCode:
+          type: string
+          maxLength: 50
+          description: |
+            Stable, machine-readable error code. Clients may dispatch on this value.
+            Codes are grouped by domain prefix; numbering is stable across releases.
+
+            **Auth** — `AUTH_001` login failed · `AUTH_002` unauthorized · `AUTH_003` access denied · `AUTH_004` audience mismatch
+
+            **Validation** — `VAL_002` field validation failed ·
+            `VAL_003` invalid parameter type · `VAL_004` invalid JSON · `VAL_005` bad request
+
+            **Not found** — `NF_001` resource not found · `NF_002` entity not found
+
+            **Conflict** — `CF_001` duplicate record · `CF_002` data integrity violation
+
+            **Internal** — `INT_001` internal server error · `INT_002` unexpected error
+
+            **User** — `USER_002` onboarding incomplete
+
+            **Interests** — `INT_TAG_001` unknown tag
+
+            **Presence** — `PRES_001` user not Ready · `PRES_002` location required for Ready
+
+            **Mood board** — `MOOD_001` must contain exactly 6 images ·
+            `MOOD_002` images must be Unsplash references
+
+            **Ping** — `PING_001` target not Ready · `PING_002` already sent ·
+            `PING_003` self-target · `PING_006` invalid state transition
+
+            Source of truth: `ua.coffeetamine.common.exception.ErrorCode`.
+          enum:
+            - AUTH_001
+            - AUTH_002
+            - AUTH_003
+            - AUTH_004
+            - VAL_002
+            - VAL_003
+            - VAL_004
+            - VAL_005
+            - NF_001
+            - NF_002
+            - CF_001
+            - CF_002
+            - INT_001
+            - INT_002
+            - USER_002
+            - INT_TAG_001
+            - PRES_001
+            - PRES_002
+            - MOOD_001
+            - MOOD_002
+            - PING_001
+            - PING_002
+            - PING_003
+            - PING_006
+          example: "USER_002"
+        traceId:
+          type: string
+          maxLength: 100
+          pattern: "^[a-f0-9]+$"
+          description: Distributed tracing ID for log correlation
+          example: "4eea4b7b47851314"
+        errors:
+          type: array
+          maxItems: 50
+          description: Field-level validation errors
+          items:
+            $ref: "#/components/schemas/ProblemDetailValidationError"
+      additionalProperties: false

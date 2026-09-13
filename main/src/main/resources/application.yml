@@ -1,0 +1,236 @@
+# Base configuration shared across all profiles. Profile-specific overrides live in
+# application-{profile}.yml. The active profile defaults to `dev` so a fresh clone +
+# `make dev` boots into dev mode without needing to set SPRING_PROFILES_ACTIVE.
+
+spring:
+  application:
+    name: coffeetamine
+
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
+  # Secrets in prod are sourced via Vault → External Secrets Operator → Kubernetes Secret →
+  # env vars. The backend reads env-only; the Spring Cloud Vault path is optional and only
+  # available when the `vault` Maven profile is built (-Pvault). See architecture/VAULT_INTEGRATION.md.
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/coffeetamine}
+    username: ${DB_USERNAME:coffeetamine}
+    password: ${DB_PASSWORD:coffeetamine}
+    driver-class-name: org.postgresql.Driver
+    # Boot 4.1: take a pooled connection only when a statement actually runs (not at
+    # @Transactional entry) via LazyConnectionDataSourceProxy. Effective because open-in-view=false.
+    connection-fetch: lazy
+
+  jpa:
+    open-in-view: false
+    properties:
+      hibernate:
+        # Normalize Instant / OffsetDateTime to UTC at the JDBC layer. Postgres
+        # `timestamptz` already stores UTC; this aligns the binding so values are
+        # deterministic regardless of JVM / connection time zone.
+        timezone:
+          default_storage: NORMALIZE_UTC
+        # JDBC batching — buffers up to N statements and ships as one round-trip.
+        # order_inserts / order_updates group same-table ops to maximise batching
+        # effectiveness with @Version entities (BaseAuditableEntity).
+        jdbc:
+          batch_size: 25
+        order_inserts: true
+        order_updates: true
+        batch_versioned_data: true
+
+  # Jackson 3 already serialises java.time.* as ISO-8601 strings by default —
+  # WRITE_DATES_AS_TIMESTAMPS was reorganised out of SerializationFeature.
+  jackson:
+    time-zone: UTC
+    default-property-inclusion: non_null
+
+  # Global paging defaults + a hard cap so a client can't request an unbounded page on any of the
+  # paginated list endpoints (pings, matches, notifications, interests, nearby, devices).
+  data:
+    web:
+      pageable:
+        default-page-size: 20
+        max-page-size: 100
+
+  liquibase:
+    change-log: classpath:db/changelog/coffeetamine-changelog.yaml
+    enabled: true
+
+  modulith:
+    events:
+      # Liquibase owns the event_publication(+_archive) schema; Modulith auto-init off.
+      jdbc:
+        schema-initialization:
+          enabled: false
+      # Completed publications move to event_publication_archive (keeps the active registry lean).
+      completion-mode: archive
+      # Re-deliver publications left incomplete by a crash when the application restarts.
+      republish-outstanding-events-on-restart: true
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # OIDC issuer URL — backend discovers JWKS at {issuer-uri}/.well-known/openid-configuration.
+          # Works with any spec-compliant provider (Keycloak, ZITADEL, Auth0, mock-oauth2-server …).
+          # NOTE: this value must match the `iss` claim minted into tokens byte-for-byte. In dev,
+          # both the host JVM and the docker-compose backend reach mock-oauth2-server through the
+          # `oidc:8081` alias (set via /etc/hosts on the host — see `make hosts-check`) so the
+          # discovered issuer and the issued `iss` agree. Anything else (localhost vs oidc, with
+          # vs without trailing slash) trips Spring's exact-match validator and results in 401.
+          issuer-uri: ${OIDC_ISSUER_URI:http://oidc:8081/default}
+          # Principal name = sub claim. Subjects may be opaque strings — not parsed as UUID by the
+          # backend; SecurityUtils delegates to UserIdentityResolver to map (iss, sub) → app_user_id.
+          principal-claim-name: sub
+          # Expected JWT 'aud' claim — token-confusion guard. Spring Security validates that
+          # incoming tokens contain this audience before the request reaches controllers.
+          audiences: ${OIDC_AUDIENCE:coffeetamine-api}
+          # NOTE: no authorities-claim-name / authority-prefix here on purpose. Role mapping is
+          # owned by JwtAuthorityMapper: ROLE_USER for any authenticated principal, ROLE_ADMIN
+          # by backend-owned email allowlist (app.admin-emails).
+
+server:
+  port: ${SERVER_PORT:8090}
+  shutdown: graceful
+  forward-headers-strategy: framework
+
+# Log correlation: combine traceId/spanId (placed by micrometer-tracing) with the JWT subject
+# (placed by MdcUserContextFilter) so every log line carries who/what/which-trace.
+logging:
+  pattern:
+    correlation: "[${spring.application.name:},%X{traceId:-},%X{spanId:-},%X{userId:-anonymous}] "
+
+# Tracing auto-enabled via micrometer-tracing-bridge-brave on classpath. Sampling at
+# 1.0 (every request) for MVP — dial down via env var once we have real traffic.
+#
+# Actuator endpoints sit on the main server port in dev so `make up` is one-port-simple.
+# The prod sub-document below moves them to a separate management port that DevOps
+# must NOT expose through the public ingress — only scrape-side (Prometheus, k8s probes).
+management:
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING:1.0}
+    propagation:
+      type: w3c
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus, modulith
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+    display-request-duration: true
+  default-consumes-media-type: application/json
+  default-produces-media-type: application/json
+  writer-with-default-pretty-printer: true
+  show-actuator: true
+  # Keep "0-all" first so it remains the default tab in Swagger UI.
+  group-configs:
+    - group: 0-all
+      display-name: "All APIs"
+      packages-to-scan: ua.coffeetamine
+      paths-to-match: /api/**
+
+info:
+  app:
+    name: Coffeetamine
+    description: "Location-based social discovery for vibe-based coffee micro-encounters"
+    version: ${APP_VERSION:0.1.0-SNAPSHOT}
+    encoding: UTF-8
+    java:
+      version: 25
+
+# Coffeetamine domain configuration. Server-side caps on caller-supplied parameters so the
+# conjunctive discovery filter (PRODUCT_CONCEPT §7) cannot be bypassed and so jittered location
+# offsets (§10) stay under operational control. Values are also reflected in the OpenAPI specs
+# (radiusMeters / minCompatibility min+max) — keep both in sync if you change them here.
+coffeetamine:
+  discovery:
+    # Used when the client omits radiusMeters. Mirrors OpenAPI default.
+    default-radius-meters: ${COFFEETAMINE_DISCOVERY_DEFAULT_RADIUS:1000}
+    # Hard ceiling. Caller-supplied radii above this are clamped down — never trust the client.
+    max-radius-meters: ${COFFEETAMINE_DISCOVERY_MAX_RADIUS:5000}
+    # Used when the client omits minCompatibility. Mirrors OpenAPI default.
+    default-min-compatibility: ${COFFEETAMINE_DISCOVERY_DEFAULT_THRESHOLD:30}
+    # Floor — keeps the §7 filter meaningful. Caller cannot bypass with `minCompatibility=1`.
+    min-allowed-compatibility: ${COFFEETAMINE_DISCOVERY_MIN_THRESHOLD:10}
+  presence:
+    # Radius (m) of the server-side jitter applied to raw GPS before persistence (§10).
+    # Raw coordinates are never stored — increasing this hides users further from their real
+    # location at the cost of reduced map accuracy.
+    jitter-max-meters: ${COFFEETAMINE_PRESENCE_JITTER_METERS:80}
+
+app:
+  # Lower-cased email allowlist that grants ROLE_ADMIN on top of ROLE_USER. The IdP
+  # itself is NOT trusted for admin — moderation access is gated here. Comma-separated
+  # values via env var (e.g. `APP_ADMIN_EMAILS=alice@x.com,bob@y.com`).
+  admin-emails: ${APP_ADMIN_EMAILS:}
+  # Spring Modulith event-publication-registry housekeeping (used by EventPublicationMaintenance).
+  modulith:
+    events:
+      resubmit-min-age: 5m
+      resubmit-max-in-flight: 100
+      resubmit-max-attempts: 10
+      resubmit-interval-ms: 300000
+      archive-retention-days: 14
+      archive-cleanup-cron: "0 0 2 * * *"
+
+---
+# `prod` profile — activated in k8s/staging via SPRING_PROFILES_ACTIVE=prod.
+# Required secrets are injected as env vars by External Secrets Operator (which syncs them
+# from Vault into a Kubernetes Secret mounted as env). Prod intentionally has NO defaults
+# for those values: a missing env var fails the placeholder resolver at startup, which is
+# the desired fail-fast behaviour. See architecture/VAULT_INTEGRATION.md.
+#
+# Beyond secrets, this profile hardens the surface area exposed publicly:
+#   - actuator moves to a separate management port (9090 by default) — only the cluster's
+#     scrape side (Prometheus, k8s liveness/readiness) should reach it, never the ingress;
+#   - Swagger UI and /v3/api-docs are disabled to avoid handing the API surface to anyone
+#     who can reach the public hostname.
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${OIDC_ISSUER_URI}
+          audiences: ${OIDC_AUDIENCE}
+
+management:
+  # Separate port so the ingress (which forwards 443→8090) cannot reach /actuator/*.
+  # Cluster-internal scrapers (Prometheus, kubelet probes) hit 9090 directly through the pod IP.
+  server:
+    port: ${MANAGEMENT_SERVER_PORT:9090}
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus, modulith
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+app:
+  admin-emails: ${APP_ADMIN_EMAILS:}

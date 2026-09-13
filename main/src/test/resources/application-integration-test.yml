@@ -1,0 +1,57 @@
+# Integration-test profile. Active when `@ActiveProfiles("integration-test")` is set on the
+# test class hierarchy (BaseIntegrationTest). The container wires the datasource via
+# ContainersConfig; inter-module events run in-process via Spring Modulith (no broker).
+#
+# Notes:
+# - Liquibase still runs against the Postgres container so the schema mirrors prod exactly.
+# - Tracing sampling is dialled down so test runs don't emit thousands of spans.
+# - JWT issuer-uri is overridden with a localhost stub: in tests JWTs are mocked via
+#   spring-security-test (`SecurityMockMvcRequestPostProcessors.jwt()`), the resource-server
+#   never actually validates against this URL.
+
+spring:
+  threads:
+    virtual:
+      enabled: false  # virtual threads + sync MockMvc cause flaky tests under load
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # No real JWKS lookup happens in tests — JWT validation is mocked by
+          # spring-security-test's RequestPostProcessors. Empty issuer disables the
+          # auto-config bean otherwise probing localhost on every context start.
+          issuer-uri: ""
+          jwk-set-uri: http://localhost:0/.well-known/jwks.json
+
+  jpa:
+    show-sql: false
+    hibernate:
+      # Validate entities against the real Liquibase-applied schema — fail fast on entity/migration
+      # drift instead of silently diverging (Liquibase changelog is inherited from application.yml).
+      ddl-auto: validate
+
+management:
+  tracing:
+    sampling:
+      probability: 0.0
+
+logging:
+  level:
+    # Surface real causes when an IT hits an unexpected 500 — GlobalExceptionHandler.handleGeneral
+    # logs the swallowed exception at ERROR, but app-level INFO drowns it. DEBUG on our package
+    # also shows service-layer decision points without flooding with framework noise.
+    ua.coffeetamine: WARN
+    org.springframework.web: WARN
+    org.hibernate: WARN
+
+# Test-specific discovery limits — keep the operational invariants but use tighter numbers
+# so assertions are quicker to write (e.g. radius=500m tests are easier to set up).
+coffeetamine:
+  discovery:
+    default-radius-meters: 1000
+    max-radius-meters: 5000
+    default-min-compatibility: 30
+    min-allowed-compatibility: 10
+  presence:
+    jitter-max-meters: 80

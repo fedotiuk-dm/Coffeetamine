@@ -1,0 +1,119 @@
+---
+openapi: 3.0.4
+info:
+  title: Coffeetamine Presence API
+  description: |
+    Ready / Not Ready status, optional mood comment, and jittered location for map
+    visibility. Raw GPS submitted by the client is never echoed back — the server
+    persists and returns only jittered coordinates.
+
+    **Liveness (MVP):** there is **no server-side TTL** in the MVP — a user remains
+    `READY` until they (a) explicitly `DELETE /api/presence/me`, (b) `PUT` a new
+    presence with `status=NOT_READY`, or (c) the row is reset by an admin. Clients
+    SHOULD refresh `PUT /api/presence/me` while the app is in the foreground (suggested
+    cadence: every 30–60 s, or on significant location change) and SHOULD call
+    `DELETE /api/presence/me` when the app is backgrounded or the user explicitly goes
+    offline. A presence-TTL job may be introduced post-MVP; clients should not rely on
+    server-side expiry.
+  version: 1.0.0
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://localhost:8443
+    description: Local development server
+
+tags:
+  - name: presence
+
+paths:
+  /api/presence/me:
+    get:
+      tags:
+        - presence
+      summary: Get my presence
+      description: |
+        Returns the authenticated user's current presence (status + optional mood +
+        jittered location). Auto-creates a row with status=NOT_READY on first call.
+      operationId: getMyPresence
+      responses:
+        "200":
+          description: Current presence
+          content:
+            application/json:
+              schema:
+                $ref: "presence-schemas.yaml#/components/schemas/PresenceResponse"
+        "401":
+          $ref: "common.yaml#/components/responses/Unauthorized"
+        default:
+          $ref: "common.yaml#/components/responses/default"
+    put:
+      tags:
+        - presence
+      summary: Update my presence
+      description: |
+        Replaces the caller's presence (PUT semantics). `status` is always required;
+        omit `mood` to clear it. When going to READY, raw lat/lng are required so the
+        server can jitter and persist them. Onboarding wizard must be completed first —
+        returns **404 with `errorCode: USER_002`** otherwise.
+      operationId: updateMyPresence
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "presence-schemas.yaml#/components/schemas/UpdatePresenceRequest"
+      responses:
+        "200":
+          description: Updated presence (with jittered coordinates)
+          content:
+            application/json:
+              schema:
+                $ref: "presence-schemas.yaml#/components/schemas/PresenceResponse"
+        "400":
+          description: |
+            Invalid request. Notable error codes:
+            - `PRES_002` — `status=READY` was submitted without `rawLatitude` / `rawLongitude`.
+            - `VAL_002` — generic bean-validation failure (out-of-range lat/lng, blank mood, etc).
+          content:
+            application/problem+json:
+              schema:
+                $ref: "common.yaml#/components/schemas/ErrorResponse"
+            application/json:
+              schema:
+                $ref: "common.yaml#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "common.yaml#/components/responses/Unauthorized"
+        "404":
+          description: Onboarding not yet completed (errorCode USER_002)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "common.yaml#/components/schemas/ErrorResponse"
+            application/json:
+              schema:
+                $ref: "common.yaml#/components/schemas/ErrorResponse"
+        default:
+          $ref: "common.yaml#/components/responses/default"
+    delete:
+      tags:
+        - presence
+      summary: Go offline
+      description: "Sets status to NOT_READY and clears the location and mood. The user immediately disappears from discovery."
+      operationId: clearMyPresence
+      responses:
+        "204":
+          description: Presence cleared
+        "401":
+          $ref: "common.yaml#/components/responses/Unauthorized"
+        default:
+          $ref: "common.yaml#/components/responses/default"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      $ref: "common.yaml#/components/securitySchemes/bearerAuth"
+
+security:
+  - bearerAuth: []

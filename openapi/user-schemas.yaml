@@ -1,0 +1,134 @@
+---
+components:
+  schemas:
+    UserProfileResponse:
+      type: object
+      description: Owner-view of the authenticated user's profile
+      required:
+        - userId
+        - name
+        - onboardingCompleted
+        - createdAt
+        - updatedAt
+      properties:
+        userId:
+          type: string
+          format: uuid
+          description: Internal app user UUID
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+          description: Display name / nickname
+          example: "Dima"
+        avatarUrl:
+          type: string
+          maxLength: 500
+          description: Avatar URL (Google account picture or uploaded image)
+          example: "https://lh3.googleusercontent.com/a/AAcHTtest"
+        about:
+          type: string
+          maxLength: 500
+          description: Short free-text bio
+        email:
+          type: string
+          maxLength: 320
+          description: Email from JWT (owner-view only, never exposed to other users)
+          example: "user@example.com"
+        onboardingCompleted:
+          type: boolean
+          description: True once the onboarding wizard has been finished at least once
+        createdAt:
+          type: string
+          format: date-time
+          description: Profile creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last profile update timestamp
+      additionalProperties: false
+
+    PublicUserProfileResponse:
+      type: object
+      description: Public view of another user's profile (no email, no private fields)
+      required:
+        - userId
+        - name
+      properties:
+        userId:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+        avatarUrl:
+          type: string
+          maxLength: 500
+        about:
+          type: string
+          maxLength: 500
+      additionalProperties: false
+
+    UpdateUserProfileRequest:
+      type: object
+      description: Partial update of editable profile fields. Omit a field to leave unchanged.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+        avatarUrl:
+          type: string
+          maxLength: 500
+        about:
+          type: string
+          maxLength: 500
+      additionalProperties: false
+
+    OnboardingRequest:
+      type: object
+      description: |
+        Onboarding wizard payload (atomic): basic info + interests + optional bio + 6 mood-board
+        images. All four steps from PRODUCT_CONCEPT submitted in a single request.
+
+        **Atomicity guarantee.** The server persists the user profile, replaces interest
+        selections, and seeds the mood board inside a single transaction. If any part fails
+        (unknown interest tag, non-Unsplash image URL, validation error) the whole request
+        rolls back and the caller stays in the pre-onboarding state — never partial.
+
+        **Idempotent.** Re-submitting overwrites every section. Mobile clients use this to
+        resume a partially-finished wizard without leaving stale rows.
+      required:
+        - name
+        - interestIds
+        - moodBoardImages
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+        avatarUrl:
+          type: string
+          maxLength: 500
+        about:
+          type: string
+          maxLength: 500
+        interestIds:
+          type: array
+          minItems: 1
+          maxItems: 20
+          description: IDs of selected interest tags from the global catalog
+          items:
+            type: string
+            format: uuid
+        moodBoardImages:
+          type: array
+          minItems: 6
+          maxItems: 6
+          description: Exactly 6 Unsplash image references
+          items:
+            $ref: "mood-board-schemas.yaml#/components/schemas/MoodBoardImageInput"
+      additionalProperties: false

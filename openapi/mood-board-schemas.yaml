@@ -1,0 +1,109 @@
+---
+components:
+  schemas:
+    MoodBoardImage:
+      type: object
+      description: A single Unsplash image reference stored on the mood board
+      required:
+        - unsplashPhotoId
+        - imageUrl
+        - photographerName
+        - attributionUrl
+      properties:
+        unsplashPhotoId:
+          type: string
+          minLength: 1
+          maxLength: 50
+          pattern: "^[A-Za-z0-9_-]+$"
+          description: Unsplash photo ID (e.g., the "abc123" in https://unsplash.com/photos/abc123)
+          example: "Pf1Mc7iiNNg"
+        imageUrl:
+          type: string
+          format: uri
+          description: Direct image URL hosted by Unsplash (NOT proxied through Coffeetamine)
+          example: "https://images.unsplash.com/photo-1517090189-8fb0e2a98c44"
+        photographerName:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Photographer display name (required for Unsplash attribution)
+          example: "Jane Doe"
+        photographerProfileUrl:
+          type: string
+          format: uri
+          description: URL to photographer's Unsplash profile
+          example: "https://unsplash.com/@janedoe"
+        attributionUrl:
+          type: string
+          format: uri
+          description: Canonical Unsplash photo page URL (required for attribution)
+          example: "https://unsplash.com/photos/Pf1Mc7iiNNg"
+      additionalProperties: false
+
+    MoodBoardImageInput:
+      type: object
+      description: Mood-board image input (same shape as MoodBoardImage; separate schema to allow future divergence)
+      required:
+        - unsplashPhotoId
+        - imageUrl
+        - photographerName
+        - attributionUrl
+      properties:
+        unsplashPhotoId:
+          type: string
+          minLength: 1
+          maxLength: 50
+          pattern: "^[A-Za-z0-9_-]+$"
+        imageUrl:
+          type: string
+          format: uri
+        photographerName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        photographerProfileUrl:
+          type: string
+          format: uri
+        attributionUrl:
+          type: string
+          format: uri
+      additionalProperties: false
+
+    MoodBoardResponse:
+      type: object
+      description: |
+        A user's mood board. Once onboarding is complete, `images` will contain exactly 6
+        entries. During onboarding it may contain fewer.
+      required:
+        - userId
+        - images
+      properties:
+        userId:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        images:
+          type: array
+          minItems: 0
+          maxItems: 6
+          description: Ordered list of mood-board images (max 6)
+          items:
+            $ref: "#/components/schemas/MoodBoardImage"
+        updatedAt:
+          type: string
+          format: date-time
+      additionalProperties: false
+
+    UpdateMoodBoardRequest:
+      type: object
+      description: Atomic replacement of the user's mood board. MUST contain exactly 6 images.
+      required:
+        - images
+      properties:
+        images:
+          type: array
+          minItems: 6
+          maxItems: 6
+          items:
+            $ref: "#/components/schemas/MoodBoardImageInput"
+      additionalProperties: false

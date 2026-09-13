@@ -1,0 +1,71 @@
+databaseChangeLog:
+  - changeSet:
+      id: interests-1.0.0-create-user-interest-selections
+      author: fedotiuk-dm
+      comment: Ordered per-user interest selections keyed by internal app_user_id UUID.
+      preConditions:
+        - onFail: MARK_RAN
+        - not:
+            - tableExists:
+                tableName: user_interest_selections
+      changes:
+        - createTable:
+            tableName: user_interest_selections
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: interest_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_user_interest_selections_interest
+                    references: interest_tags(id)
+              - column:
+                  name: selection_order
+                  type: int
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: version
+                  type: bigint
+                  defaultValueNumeric: "0"
+                  constraints:
+                    nullable: false
+        - addUniqueConstraint:
+            tableName: user_interest_selections
+            columnNames: user_id, interest_id
+            constraintName: uk_user_interest_selections_user_interest
+        - addUniqueConstraint:
+            tableName: user_interest_selections
+            columnNames: user_id, selection_order
+            constraintName: uk_user_interest_selections_user_position
+        - createIndex:
+            indexName: idx_user_interest_selections_user_order
+            tableName: user_interest_selections
+            columns:
+              - column:
+                  name: user_id
+              - column:
+                  name: selection_order

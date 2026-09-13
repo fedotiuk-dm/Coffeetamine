@@ -1,0 +1,18 @@
+databaseChangeLog:
+  - changeSet:
+      id: common-1.1.0-event-archive-hash-index
+      author: fedotiuk-dm
+      comment: |
+        Add the serialized_event hash index on event_publication_archive that Spring Modulith 2.1's
+        bundled v2 schema-postgresql-archive.sql ships but the 1.0.0 event-publication changeset
+        omitted. Without it, registry lookups of archived publications by event payload do a sequential
+        scan. Forward-only parity fix; the 1.0.0 changeset stays untouched.
+      preConditions:
+        - onFail: MARK_RAN
+        - tableExists:
+            tableName: event_publication_archive
+      changes:
+        - sql:
+            sql: >
+              CREATE INDEX IF NOT EXISTS event_publication_archive_serialized_event_hash_idx
+              ON event_publication_archive USING hash(serialized_event)

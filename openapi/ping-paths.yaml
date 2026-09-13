@@ -1,0 +1,302 @@
+---
+openapi: 3.0.4
+info:
+  title: Coffeetamine Ping & Match API
+  description: |
+    Ping → Pong → Match. Sending a ping signals interest; the recipient responds with
+    a pong on the same ping. Match is created exactly once per unordered pair (DB
+    unique constraint enforces idempotency on near-simultaneous pongs). No chat in MVP.
+  version: 1.0.0
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://localhost:8443
+    description: Local development server
+
+tags:
+  - name: pings
+  - name: matches
+
+paths:
+  /api/pings:
+    post:
+      tags:
+        - pings
+      summary: Send a ping
+      description: |
+        Sends a ping to `targetUserId`. Returns the created ping in PENDING state.
+
+        Server-side guards (in order):
+        - Self-ping rejected — 400 with `errorCode: PING_003`.
+        - Caller must have completed onboarding — 404 with `errorCode: USER_002`.
+        - Target must be READY — 409 with `errorCode: PING_001`.
+        - A PENDING ping already exists for this (caller, target) ordered pair — 409 with
+          `errorCode: PING_002`. If an *inverse* PENDING ping exists (target→caller),
+          the caller should `POST /api/pings/{pingId}/pong` instead.
+      operationId: sendPing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "ping-schemas.yaml#/components/schemas/SendPingRequest"
+      responses:
+        "201":
+          description: Ping created
+          content:
+            application/json:
+              schema:
+                $ref: "ping-schemas.yaml#/components/schemas/Ping"
+        "400":
+          description: |
+            Validation failure or self-ping (errorCode PING_003).
+          content:
+            application/problem+json:
+              schema:
+                $ref: "common.yaml#/components/schemas/ErrorResponse"
+            application/json:
+              schema:
+                $ref: "common.yaml#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "common.yaml#/components/responses/Unauthorized"
+        "404":
+          description: Onboarding not yet completed (errorCode USER_002)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "common.yaml#/components/schemas/ErrorResponse"
+            application/json:
+              schema:
+                $ref: "common.yaml#/components/schemas/ErrorResponse"
+        "409":
+          description: |
+            Target user is not READY (errorCode PING_001), or a PENDING ping already
+            exists for the (caller, target) pair (errorCode PING_002 — when inverse,
+            the caller should pong instead).
+          content:
+            application/problem+json:
+              schema:
+                $ref: "common.yaml#/components/schemas/ErrorResponse"
+            application/json:
+              schema:
+                $ref: "common.yaml#/components/schemas/ErrorResponse"
+        default:
+          $ref: "common.yaml#/components/responses/default"
+
+  /api/pings/sent:
+    get:
+      tags:
+        - pings
+      summary: List my outgoing pings
+      description: "Paginated list of pings sent by the authenticated user."
+      operationId: listSentPings
+      x-spring-paginated: true
+      parameters:
+        - name: status
+          in: query
+          description: Filter by ping status
+          schema:
+            $ref: "ping-schemas.yaml#/components/schemas/PingStatus"
+        - $ref: "common.yaml#/components/parameters/PageNumber"
+        - $ref: "common.yaml#/components/parameters/PageSize"
+        - $ref: "common.yaml#/components/parameters/Sort"
+      responses:
+        "200":
+          description: Outgoing pings
+          content:
+            application/json:
+              schema:
+                $ref: "ping-schemas.yaml#/components/schemas/PingListResponse"
+        "401":
+          $ref: "common.yaml#/components/responses/Unauthorized"
+        default:
+          $ref: "common.yaml#/components/responses/default"
+
+  /api/pings/received:
+    get:
+      tags:
+        - pings
+      summary: List my incoming pings
+      description: "Paginated list of pings received by the authenticated user."
+      operationId: listReceivedPings
+      x-spring-paginated: true
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: "ping-schemas.yaml#/components/schemas/PingStatus"
+        - $ref: "common.yaml#/components/parameters/PageNumber"
+        - $ref: "common.yaml#/components/parameters/PageSize"
+        - $ref: "common.yaml#/components/parameters/Sort"
+      responses:
+        "200":
+          description: Incoming pings
+          content:
+            application/json:
+              schema:
+                $ref: "ping-schemas.yaml#/components/schemas/PingListResponse"
+        "401":
+          $ref: "common.yaml#/components/responses/Unauthorized"
+        default:
+          $ref: "common.yaml#/components/responses/default"
+
+  /api/pings/{pingId}:
+    delete:
+      tags:
+        - pings
+      summary: Withdraw a ping
+      description: |
+        Withdraws a PENDING ping sent by the caller. No-op if the ping is already
+        MATCHED — once a match is established it cannot be undone via this endpoint.
+      operationId: withdrawPing
+      parameters:
+        - name: pingId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            example: "123e4567-e89b-12d3-a456-426614174000"
+      responses:
+        "204":
+          description: Ping withdrawn
+        "401":
+          $ref: "common.yaml#/components/responses/Unauthorized"
+        "403":
+          description: Caller is not the sender of this ping
+          content:
+            application/problem+json:
+              schema:
+                $ref: "common.yaml#/components/schemas/ErrorResponse"
+            application/json:
+              schema:
+                $ref: "common.yaml#/components/schemas/ErrorResponse"
+        "404":
+          $ref: "common.yaml#/components/responses/NotFound"
+        "409":
+          description: Ping is already MATCHED and cannot be withdrawn
+          content:
+            application/problem+json:
+              schema:
+                $ref: "common.yaml#/components/schemas/ErrorResponse"
+            application/json:
+              schema:
+                $ref: "common.yaml#/components/schemas/ErrorResponse"
+        default:
+          $ref: "common.yaml#/components/responses/default"
+
+  /api/pings/{pingId}/pong:
+    post:
+      tags:
+        - pings
+      summary: Pong a ping (creates a match)
+      description: |
+        Responds to a PENDING ping addressed to the caller. Atomically transitions the
+        ping to MATCHED and creates a single Match row. Idempotent on near-simultaneous
+        pongs from both sides — the DB unique constraint on the unordered (a, b) pair
+        guarantees exactly one Match per pair. Returns the created Match.
+      operationId: pongPing
+      parameters:
+        - name: pingId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            example: "123e4567-e89b-12d3-a456-426614174000"
+      responses:
+        "200":
+          description: Match created (or already existed — same response shape)
+          content:
+            application/json:
+              schema:
+                $ref: "ping-schemas.yaml#/components/schemas/Match"
+        "401":
+          $ref: "common.yaml#/components/responses/Unauthorized"
+        "403":
+          description: Caller is not the target of this ping
+          content:
+            application/problem+json:
+              schema:
+                $ref: "common.yaml#/components/schemas/ErrorResponse"
+            application/json:
+              schema:
+                $ref: "common.yaml#/components/schemas/ErrorResponse"
+        "404":
+          $ref: "common.yaml#/components/responses/NotFound"
+        "409":
+          description: Ping is WITHDRAWN — cannot be ponged
+          content:
+            application/problem+json:
+              schema:
+                $ref: "common.yaml#/components/schemas/ErrorResponse"
+            application/json:
+              schema:
+                $ref: "common.yaml#/components/schemas/ErrorResponse"
+        default:
+          $ref: "common.yaml#/components/responses/default"
+
+  /api/matches:
+    get:
+      tags:
+        - matches
+      summary: List my matches
+      description: "Paginated list of matches involving the authenticated user, newest first by default."
+      operationId: listMatches
+      x-spring-paginated: true
+      parameters:
+        - $ref: "common.yaml#/components/parameters/PageNumber"
+        - $ref: "common.yaml#/components/parameters/PageSize"
+        - $ref: "common.yaml#/components/parameters/Sort"
+      responses:
+        "200":
+          description: My matches
+          content:
+            application/json:
+              schema:
+                $ref: "ping-schemas.yaml#/components/schemas/MatchListResponse"
+        "401":
+          $ref: "common.yaml#/components/responses/Unauthorized"
+        default:
+          $ref: "common.yaml#/components/responses/default"
+
+  /api/matches/{matchId}:
+    get:
+      tags:
+        - matches
+      summary: Get a match
+      description: "Returns a single match by ID. Caller must be one of the two peers."
+      operationId: getMatch
+      parameters:
+        - name: matchId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            example: "123e4567-e89b-12d3-a456-426614174000"
+      responses:
+        "200":
+          description: Match
+          content:
+            application/json:
+              schema:
+                $ref: "ping-schemas.yaml#/components/schemas/Match"
+        "401":
+          $ref: "common.yaml#/components/responses/Unauthorized"
+        "403":
+          $ref: "common.yaml#/components/responses/Forbidden"
+        "404":
+          $ref: "common.yaml#/components/responses/NotFound"
+        default:
+          $ref: "common.yaml#/components/responses/default"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      $ref: "common.yaml#/components/securitySchemes/bearerAuth"
+
+security:
+  - bearerAuth: []

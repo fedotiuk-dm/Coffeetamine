@@ -1,0 +1,112 @@
+---
+components:
+  schemas:
+    PingStatus:
+      type: string
+      enum:
+        - PENDING
+        - MATCHED
+        - WITHDRAWN
+      description: |
+        PENDING   — sent, awaiting pong.
+        MATCHED   — ponged by the recipient; a Match row exists.
+        WITHDRAWN — sender cancelled before the recipient ponged.
+
+    Ping:
+      type: object
+      required:
+        - id
+        - fromUserId
+        - toUserId
+        - status
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        fromUserId:
+          type: string
+          format: uuid
+        toUserId:
+          type: string
+          format: uuid
+        status:
+          $ref: "#/components/schemas/PingStatus"
+        createdAt:
+          type: string
+          format: date-time
+      additionalProperties: false
+
+    PingListResponse:
+      allOf:
+        - $ref: "common.yaml#/components/schemas/PageResponse"
+        - type: object
+          additionalProperties: false
+          required:
+            - content
+          properties:
+            content:
+              type: array
+              maxItems: 100
+              items:
+                $ref: "#/components/schemas/Ping"
+
+    SendPingRequest:
+      type: object
+      required:
+        - targetUserId
+      properties:
+        targetUserId:
+          type: string
+          format: uuid
+          description: User to send the ping to
+          example: "123e4567-e89b-12d3-a456-426614174000"
+      additionalProperties: false
+
+    Match:
+      type: object
+      description: A mutual ping. Peer is exposed from the caller's perspective.
+      required:
+        - id
+        - peerUserId
+        - matchedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        peerUserId:
+          type: string
+          format: uuid
+          description: The other participant (not the caller)
+        peerName:
+          type: string
+          minLength: 1
+          maxLength: 50
+          description: Display name of the peer at the time the response is built
+        peerAvatarUrl:
+          type: string
+          maxLength: 500
+        initiatingPingId:
+          type: string
+          format: uuid
+          description: ID of the ping that triggered the match (the first one sent)
+        matchedAt:
+          type: string
+          format: date-time
+      additionalProperties: false
+
+    MatchListResponse:
+      allOf:
+        - $ref: "common.yaml#/components/schemas/PageResponse"
+        - type: object
+          additionalProperties: false
+          required:
+            - content
+          properties:
+            content:
+              type: array
+              maxItems: 100
+              items:
+                $ref: "#/components/schemas/Match"

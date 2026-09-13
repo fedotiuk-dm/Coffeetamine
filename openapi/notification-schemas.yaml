@@ -1,0 +1,164 @@
+---
+components:
+  schemas:
+    NotificationType:
+      type: string
+      enum:
+        - PING_RECEIVED
+        - MATCH_CREATED
+      description: |
+        PING_RECEIVED — another user sent you a ping (`pingId` is set).
+        MATCH_CREATED — a mutual ping became a match (`matchId` is set).
+
+    Notification:
+      type: object
+      description: |
+        Flattened notification — both types point at the same "other user" (the peer).
+        `pingId` is set for PING_RECEIVED; `matchId` is set for MATCH_CREATED. Mobile
+        dispatches on `type` and reads the corresponding id. Kept flat for MVP — a
+        proper polymorphic payload (oneOf + discriminator) can be introduced later if
+        a third notification type appears.
+      required:
+        - id
+        - type
+        - peerUserId
+        - peerName
+        - isRead
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        type:
+          $ref: "#/components/schemas/NotificationType"
+        peerUserId:
+          type: string
+          format: uuid
+          description: The other user (sender of the ping, or peer of the match)
+        peerName:
+          type: string
+          minLength: 1
+          maxLength: 50
+        peerAvatarUrl:
+          type: string
+          maxLength: 500
+        pingId:
+          type: string
+          format: uuid
+          description: Set when type=PING_RECEIVED — the ping that triggered this notification
+        matchId:
+          type: string
+          format: uuid
+          description: Set when type=MATCH_CREATED — the match that triggered this notification
+        isRead:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        readAt:
+          type: string
+          format: date-time
+          description: Present only when isRead is true
+      additionalProperties: false
+
+    NotificationListResponse:
+      allOf:
+        - $ref: "common.yaml#/components/schemas/PageResponse"
+        - type: object
+          additionalProperties: false
+          required:
+            - content
+          properties:
+            content:
+              type: array
+              maxItems: 100
+              items:
+                $ref: "#/components/schemas/Notification"
+
+    UnreadCountResponse:
+      type: object
+      required:
+        - unread
+      properties:
+        unread:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 2147483647
+          description: Total number of unread notifications for the caller
+      additionalProperties: false
+
+    DevicePlatform:
+      type: string
+      enum:
+        - FCM
+        - APNS
+      description: |
+        FCM  — Firebase Cloud Messaging (Android, also Web).
+        APNS — Apple Push Notification service (iOS).
+
+    Device:
+      type: object
+      required:
+        - id
+        - platform
+        - token
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        platform:
+          $ref: "#/components/schemas/DevicePlatform"
+        token:
+          type: string
+          minLength: 1
+          maxLength: 4096
+          description: Push token (FCM registration token or APNs device token, hex-encoded)
+        appVersion:
+          type: string
+          maxLength: 50
+          pattern: "^[A-Za-z0-9.+-]+$"
+          description: Optional client app version (e.g., "1.2.3" or "1.2.3+build.45")
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      additionalProperties: false
+
+    DeviceListResponse:
+      allOf:
+        - $ref: "common.yaml#/components/schemas/PageResponse"
+        - type: object
+          additionalProperties: false
+          required:
+            - content
+          properties:
+            content:
+              type: array
+              maxItems: 50
+              items:
+                $ref: "#/components/schemas/Device"
+
+    RegisterDeviceRequest:
+      type: object
+      required:
+        - platform
+        - token
+      properties:
+        platform:
+          $ref: "#/components/schemas/DevicePlatform"
+        token:
+          type: string
+          minLength: 1
+          maxLength: 4096
+        appVersion:
+          type: string
+          maxLength: 50
+          pattern: "^[A-Za-z0-9.+-]+$"
+      additionalProperties: false

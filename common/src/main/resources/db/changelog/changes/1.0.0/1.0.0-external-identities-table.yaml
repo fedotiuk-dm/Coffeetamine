@@ -1,0 +1,71 @@
+databaseChangeLog:
+  - changeSet:
+      id: common-1.0.0-create-external-identities
+      author: fedotiuk-dm
+      comment: |
+        Maps OIDC (issuer, subject) tuples to internal app_user_id UUIDs so the
+        backend stays decoupled from any specific OIDC provider's subject format.
+        JIT-provisioned on first authenticated request. No FK on app_user_id
+        because the matching profile row in user_profiles may not exist yet
+        (created later in the onboarding wizard).
+      preConditions:
+        - onFail: MARK_RAN
+        - not:
+            - tableExists:
+                tableName: external_identities
+      changes:
+        - createTable:
+            tableName: external_identities
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: app_user_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: issuer
+                  type: varchar(512)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: subject
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: email
+                  type: varchar(320)
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: version
+                  type: bigint
+                  defaultValueNumeric: "0"
+                  constraints:
+                    nullable: false
+        - addUniqueConstraint:
+            tableName: external_identities
+            columnNames: issuer, subject
+            constraintName: uk_external_identities_issuer_subject
+        - createIndex:
+            tableName: external_identities
+            indexName: idx_external_identities_app_user_id
+            columns:
+              - column:
+                  name: app_user_id

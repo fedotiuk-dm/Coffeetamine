@@ -1,0 +1,18 @@
+databaseChangeLog:
+  # Module changelogs are included here as they are added. Order matters when there are
+  # cross-module FK references, though Coffeetamine deliberately avoids cross-module FKs
+  # (user-owned rows key on internal app_user_id UUIDs without DB-level cross-module constraints).
+  - include:
+      file: db/changelog/common-module-changelog.yaml
+  - include:
+      file: db/changelog/user-module-changelog.yaml
+  - include:
+      file: db/changelog/interests-module-changelog.yaml
+  - include:
+      file: db/changelog/presence-module-changelog.yaml
+  - include:
+      file: db/changelog/mood-board-module-changelog.yaml
+  - include:
+      file: db/changelog/ping-module-changelog.yaml
+  - include:
+      file: db/changelog/notification-module-changelog.yaml

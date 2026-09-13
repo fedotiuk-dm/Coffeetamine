@@ -1,0 +1,93 @@
+databaseChangeLog:
+  - changeSet:
+      id: notification-1.0.0-create-notifications
+      author: fedotiuk-dm
+      comment: |
+        In-app notification rows. Peer fields are denormalised at insert time so
+        list views avoid joins and stay stable if the peer later changes name.
+      preConditions:
+        - onFail: MARK_RAN
+        - not:
+            - tableExists:
+                tableName: notifications
+      changes:
+        - createTable:
+            tableName: notifications
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_notifications
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: type
+                  type: varchar(30)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: peer_user_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: peer_name
+                  type: varchar(50)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: peer_avatar_url
+                  type: varchar(500)
+              - column:
+                  name: ping_id
+                  type: uuid
+              - column:
+                  name: match_id
+                  type: uuid
+              - column:
+                  name: is_read
+                  type: boolean
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+              - column:
+                  name: read_at
+                  type: timestamp with time zone
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: version
+                  type: bigint
+                  defaultValueNumeric: "0"
+                  constraints:
+                    nullable: false
+        - createIndex:
+            tableName: notifications
+            indexName: idx_notifications_user_created
+            columns:
+              - column:
+                  name: user_id
+              - column:
+                  name: created_at
+                  descending: true
+        - sql:
+            sql: >
+              create index idx_notifications_user_unread
+              on notifications (user_id, created_at desc)
+              where is_read = false

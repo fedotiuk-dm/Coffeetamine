@@ -1,0 +1,145 @@
+# Local development stack for Coffeetamine.
+#
+# Brings up the full dev environment: Postgres (app), mock-oauth2-server (OIDC), and the backend
+# itself with hot reload (Spring DevTools + JDWP). The backend uses Dockerfile.dev: source is
+# bind-mounted from the host and the Maven local cache is kept in a named volume — first boot
+# takes a few minutes to populate `.m2`, after that incremental `mvn install` is fast. Recompile
+# inside IntelliJ (Ctrl+F9 or `Build → Recompile`) and DevTools restarts the context automatically.
+#
+# Inter-module events run in-process via Spring Modulith (durable JDBC event publication registry) —
+# there is no message broker in the stack.
+#
+# DevOps does NOT use this file — production uses the multi-stage `Dockerfile`.
+#
+# Usage:
+#   docker compose -f docker-compose.dev.yml up -d           # full stack (default)
+#   docker compose -f docker-compose.dev.yml logs -f backend
+#   docker compose -f docker-compose.dev.yml down            # keep volumes
+#   docker compose -f docker-compose.dev.yml down -v         # wipe volumes (reset)
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: coffeetamine-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: coffeetamine
+      POSTGRES_PASSWORD: coffeetamine
+      POSTGRES_DB: coffeetamine
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U coffeetamine -d coffeetamine"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks: [coffeetamine]
+
+  # mock-oauth2-server — a lightweight, spec-compliant OIDC IdP for local dev. Replaces
+  # Keycloak in this stack: ~50MB image, no admin UI, no realm import. Mints a JWT for
+  # any subject string you ask for via the `/default/debugger` endpoint (see Makefile
+  # targets `make token` / `make token-admin`). Production deployment uses a real OIDC
+  # provider (ZITADEL / Keycloak managed by DevOps) — this container is dev-only.
+  oidc:
+    image: ghcr.io/navikt/mock-oauth2-server:2.1.10
+    container_name: coffeetamine-oidc
+    ports:
+      - "8081:8081"
+    environment:
+      SERVER_PORT: "8081"
+      # JSON-encoded server config — single realm "default", static JWK set. mock-oauth2-server
+      # derives the JWT `iss` claim from the Host header on the request that minted the token.
+      # We force a single hostname `oidc:8081` for both code paths (host JVM and docker network)
+      # via a `/etc/hosts` alias (`make hosts-check`), so backend's discovered issuer and the
+      # one stamped into tokens match exactly. The tokenCallbacks pin `aud`, `email`, and
+      # `email_verified=true` so admin-allowlist guards behave the same way they will in prod.
+      JSON_CONFIG: |
+        {
+          "interactiveLogin": false,
+          "tokenCallbacks": [
+            {
+              "issuerId": "default",
+              "tokenExpiry": 3600,
+              "requestMappings": [
+                {
+                  "requestParam": "username",
+                  "match": "admin@coffeetamine.local",
+                  "claims": {
+                    "aud": ["coffeetamine-api"],
+                    "email": "admin@coffeetamine.local",
+                    "email_verified": true,
+                    "preferred_username": "admin"
+                  }
+                },
+                {
+                  "requestParam": "scope",
+                  "match": "*",
+                  "claims": {
+                    "aud": ["coffeetamine-api"],
+                    "email": "dev@coffeetamine.local",
+                    "email_verified": true,
+                    "preferred_username": "dev"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+    restart: unless-stopped
+    networks: [coffeetamine]
+
+  # Backend with hot reload — built from Dockerfile.dev (Maven + JDK 25). Source is
+  # bind-mounted; Maven runs an incremental install on startup, then `spring-boot:run`
+  # with DevTools + JDWP. Liquibase runs on Spring boot — full classpath is present
+  # so the master changelog + per-module includes all resolve (the CLI can't see
+  # cross-module yamls; that's why `make up` is the canonical way to apply migrations).
+  #
+  # To trigger a hot reload while the container is running, recompile in IntelliJ
+  # (Ctrl+F9 / `Build → Recompile`) — refreshed .class files in target/ propagate
+  # through the bind mount and DevTools restarts the context.
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: coffeetamine-backend:dev
+    container_name: coffeetamine-backend
+    user: "1000:1000"
+    ports:
+      - "8090:8090"     # HTTP (Swagger UI: /swagger-ui.html, API: /api/**)
+      - "5005:5005"     # JDWP — attach IntelliJ "Remote JVM Debug" to localhost:5005
+      - "35729:35729"   # Spring DevTools LiveReload
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      DB_URL: jdbc:postgresql://postgres:5432/coffeetamine
+      DB_USERNAME: coffeetamine
+      DB_PASSWORD: coffeetamine
+      OIDC_ISSUER_URI: http://oidc:8081/default
+      OIDC_AUDIENCE: coffeetamine-api
+      APP_ADMIN_EMAILS: admin@coffeetamine.local
+      SERVER_PORT: "8090"
+    volumes:
+      - .:/app                      # source — host edits are visible immediately
+      - maven_cache:/home/appuser/.m2  # persistent Maven cache (huge first-boot speedup)
+    depends_on:
+      postgres:
+        condition: service_healthy
+      oidc:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8090/actuator/health/liveness || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 40
+      start_period: 180s
+    restart: unless-stopped
+    networks: [coffeetamine]
+
+networks:
+  coffeetamine:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  maven_cache:

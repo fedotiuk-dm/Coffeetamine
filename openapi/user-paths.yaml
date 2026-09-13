@@ -1,0 +1,159 @@
+---
+openapi: 3.0.4
+info:
+  title: Coffeetamine User Profiles API
+  description: |
+    User profile management. Profile rows are keyed by the backend's internal
+    `app_user_id` UUID, resolved from the JWT `(iss, sub)` tuple.
+  version: 1.0.0
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://localhost:8443
+    description: Local development server
+
+tags:
+  - name: users
+
+paths:
+  /api/users/me:
+    get:
+      tags:
+        - users
+      summary: Get my profile
+      description: |
+        Returns the authenticated user's profile. Returns **404 with `errorCode: USER_002`**
+        until the caller has completed `POST /api/users/me/onboarding`; mobile clients
+        should treat that as "show the onboarding wizard". **Authorization**: any
+        authenticated user.
+      operationId: getMyUserProfile
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "user-schemas.yaml#/components/schemas/UserProfileResponse"
+        "401":
+          $ref: "common.yaml#/components/responses/Unauthorized"
+        "404":
+          description: Onboarding not yet completed (errorCode USER_002)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "common.yaml#/components/schemas/ErrorResponse"
+            application/json:
+              schema:
+                $ref: "common.yaml#/components/schemas/ErrorResponse"
+        default:
+          $ref: "common.yaml#/components/responses/default"
+    put:
+      tags:
+        - users
+      summary: Update my profile
+      description: |
+        Updates the authenticated user's editable fields (name, avatar, about). Requires
+        onboarding to be completed — returns **404 with `errorCode: USER_002`** otherwise.
+        **Authorization**: any authenticated user.
+      operationId: updateMyUserProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "user-schemas.yaml#/components/schemas/UpdateUserProfileRequest"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "user-schemas.yaml#/components/schemas/UserProfileResponse"
+        "400":
+          $ref: "common.yaml#/components/responses/BadRequest"
+        "401":
+          $ref: "common.yaml#/components/responses/Unauthorized"
+        "404":
+          description: Onboarding not yet completed (errorCode USER_002)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "common.yaml#/components/schemas/ErrorResponse"
+            application/json:
+              schema:
+                $ref: "common.yaml#/components/schemas/ErrorResponse"
+        default:
+          $ref: "common.yaml#/components/responses/default"
+
+  /api/users/me/onboarding:
+    post:
+      tags:
+        - users
+      summary: Complete onboarding wizard
+      description: |
+        Submits the full onboarding payload (name, interests, optional bio, 6 mood-board
+        images) atomically. Returns the populated profile with `onboardingCompleted: true`.
+        Idempotent: re-submitting overwrites the same fields (used for resume).
+        **Authorization**: any authenticated user.
+      operationId: completeOnboarding
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "user-schemas.yaml#/components/schemas/OnboardingRequest"
+      responses:
+        "200":
+          description: Profile after onboarding
+          content:
+            application/json:
+              schema:
+                $ref: "user-schemas.yaml#/components/schemas/UserProfileResponse"
+        "400":
+          $ref: "common.yaml#/components/responses/BadRequest"
+        "401":
+          $ref: "common.yaml#/components/responses/Unauthorized"
+        "409":
+          $ref: "common.yaml#/components/responses/Conflict"
+        default:
+          $ref: "common.yaml#/components/responses/default"
+
+  /api/users/{userId}:
+    get:
+      tags:
+        - users
+      summary: Get public profile by ID
+      description: "Returns the public view of a user (no email). **Authorization**: any authenticated user."
+      operationId: getPublicUserProfile
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: Target user's internal app user UUID
+          schema:
+            type: string
+            format: uuid
+            example: "123e4567-e89b-12d3-a456-426614174000"
+      responses:
+        "200":
+          description: Public profile
+          content:
+            application/json:
+              schema:
+                $ref: "user-schemas.yaml#/components/schemas/PublicUserProfileResponse"
+        "401":
+          $ref: "common.yaml#/components/responses/Unauthorized"
+        "404":
+          $ref: "common.yaml#/components/responses/NotFound"
+        default:
+          $ref: "common.yaml#/components/responses/default"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      $ref: "common.yaml#/components/securitySchemes/bearerAuth"
+
+security:
+  - bearerAuth: []

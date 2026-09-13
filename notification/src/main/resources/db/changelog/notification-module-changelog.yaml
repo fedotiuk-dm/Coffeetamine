@@ -1,0 +1,16 @@
+databaseChangeLog:
+  - include:
+      file: changes/1.0.0/1.0.0-notifications-table.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: changes/1.0.0/1.0.0-user-devices-table.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: changes/1.1.0/1.1.0-user-devices-normalize.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: changes/1.1.0/1.1.0-notifications-idempotency-index.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: changes/1.1.0/1.1.0-user-devices-token-hash-index.yaml
+      relativeToChangelogFile: true

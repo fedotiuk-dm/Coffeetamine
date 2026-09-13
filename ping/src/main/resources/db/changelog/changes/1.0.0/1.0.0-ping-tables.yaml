@@ -1,0 +1,146 @@
+databaseChangeLog:
+  - changeSet:
+      id: ping-1.0.0-pings-table
+      author: fedotiuk-dm
+      validCheckSum:
+        - 9:bda2073b0cb63783fb9f40e9e28320c7
+        - 9:9e940d1805cb1ad3c0faef2bf33c8607
+      changes:
+        - createTable:
+            tableName: pings
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_pings
+                    nullable: false
+              - column:
+                  name: from_user_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: to_user_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: pair_low_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: pair_high_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: varchar(20)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: version
+                  type: bigint
+                  defaultValueNumeric: "0"
+                  constraints:
+                    nullable: false
+        - sql:
+            sql: >
+              create unique index uk_pings_pending_pair
+              on pings (pair_low_id, pair_high_id)
+              where status = 'PENDING'
+        - createIndex:
+            tableName: pings
+            indexName: idx_pings_from_user
+            columns:
+              - column:
+                  name: from_user_id
+              - column:
+                  name: created_at
+        - createIndex:
+            tableName: pings
+            indexName: idx_pings_to_user
+            columns:
+              - column:
+                  name: to_user_id
+              - column:
+                  name: created_at
+
+  - changeSet:
+      id: ping-1.0.0-user-matches-table
+      author: fedotiuk-dm
+      changes:
+        - createTable:
+            tableName: user_matches
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_user_matches
+                    nullable: false
+              - column:
+                  name: participant_low_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: participant_high_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: initiating_ping_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: version
+                  type: bigint
+                  defaultValueNumeric: "0"
+                  constraints:
+                    nullable: false
+        - addUniqueConstraint:
+            tableName: user_matches
+            constraintName: uk_user_matches_participants
+            columnNames: participant_low_id, participant_high_id
+        - createIndex:
+            tableName: user_matches
+            indexName: idx_user_matches_participant_low
+            columns:
+              - column:
+                  name: participant_low_id
+        - createIndex:
+            tableName: user_matches
+            indexName: idx_user_matches_participant_high
+            columns:
+              - column:
+                  name: participant_high_id

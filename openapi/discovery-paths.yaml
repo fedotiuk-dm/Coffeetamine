@@ -1,0 +1,134 @@
+---
+openapi: 3.0.4
+info:
+  title: Coffeetamine Discovery API
+  description: |
+    Nearby-user discovery and enriched per-user view. Conjunctive filter applied
+    server-side: `status == READY` AND `distance ≤ radius` AND
+    `compatibility ≥ minCompatibility`. No fallback ranking — all three must pass.
+
+    **Liveness:** there is no server-side TTL on presence in the MVP — users stay
+    `READY` until they explicitly go offline. See the *Presence* API for the
+    recommended client refresh cadence (30–60 s while foregrounded).
+  version: 1.0.0
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://localhost:8443
+    description: Local development server
+
+tags:
+  - name: discovery
+
+paths:
+  /api/discovery/nearby:
+    get:
+      tags:
+        - discovery
+      summary: List nearby Ready users
+      description: |
+        Returns Ready users within `radiusMeters` of the caller's current jittered
+        location, whose interest-overlap compatibility score is ≥ `minCompatibility`.
+        Sorted by compatibility desc, distance asc.
+
+        Both `radiusMeters` and `minCompatibility` are **server-clamped** against the
+        operational limits configured in `coffeetamine.discovery.*` — caller-supplied
+        values outside the schema bounds, or below the server's compatibility floor,
+        are silently bounded into the allowed range rather than rejected. Treat the
+        schema `minimum`/`maximum` here as the *envelope*; the actual ceiling may be
+        tighter per environment.
+
+        **Authorization**: any authenticated user. Caller must themselves be READY with a
+        location set — otherwise 409 with `errorCode: PRES_001`.
+      operationId: listNearbyUsers
+      x-spring-paginated: true
+      parameters:
+        - name: radiusMeters
+          in: query
+          required: true
+          description: |
+            Search radius around the caller in meters. Server clamps to
+            `coffeetamine.discovery.max-radius-meters` (default 5000m).
+          schema:
+            type: integer
+            format: int32
+            default: 1000
+            example: 1000
+        - name: minCompatibility
+          in: query
+          description: |
+            Minimum compatibility score (1..100). Server clamps to at least
+            `coffeetamine.discovery.min-allowed-compatibility` so the §7 filter cannot be
+            bypassed with `minCompatibility=1`.
+          schema:
+            type: integer
+            format: int32
+            default: 30
+            example: 30
+        - $ref: "common.yaml#/components/parameters/PageNumber"
+        - $ref: "common.yaml#/components/parameters/PageSize"
+        - $ref: "common.yaml#/components/parameters/Sort"
+      responses:
+        "200":
+          description: Nearby users
+          content:
+            application/json:
+              schema:
+                $ref: "discovery-schemas.yaml#/components/schemas/NearbyUserListResponse"
+        "400":
+          $ref: "common.yaml#/components/responses/BadRequest"
+        "401":
+          $ref: "common.yaml#/components/responses/Unauthorized"
+        "409":
+          description: Caller is NOT_READY or has no location set (errorCode PRES_001)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "common.yaml#/components/schemas/ErrorResponse"
+            application/json:
+              schema:
+                $ref: "common.yaml#/components/schemas/ErrorResponse"
+        default:
+          $ref: "common.yaml#/components/responses/default"
+
+  /api/discovery/users/{userId}:
+    get:
+      tags:
+        - discovery
+      summary: Get enriched discovery profile
+      description: |
+        Rich, aggregate snapshot used when the caller taps a pin: profile + interests +
+        mood board + jittered location + compatibility relative to the caller.
+        **Authorization**: any authenticated user.
+      operationId: getDiscoveryUserDetail
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            example: "123e4567-e89b-12d3-a456-426614174000"
+      responses:
+        "200":
+          description: Enriched discovery profile
+          content:
+            application/json:
+              schema:
+                $ref: "discovery-schemas.yaml#/components/schemas/DiscoveryUserDetailResponse"
+        "401":
+          $ref: "common.yaml#/components/responses/Unauthorized"
+        "404":
+          $ref: "common.yaml#/components/responses/NotFound"
+        default:
+          $ref: "common.yaml#/components/responses/default"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      $ref: "common.yaml#/components/securitySchemes/bearerAuth"
+
+security:
+  - bearerAuth: []

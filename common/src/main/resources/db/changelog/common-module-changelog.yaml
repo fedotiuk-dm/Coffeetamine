@@ -1,0 +1,10 @@
+databaseChangeLog:
+  - include:
+      file: changes/1.0.0/1.0.0-event-publication-table.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: changes/1.0.0/1.0.0-external-identities-table.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: changes/1.1.0/1.1.0-event-publication-archive-hash-index.yaml
+      relativeToChangelogFile: true

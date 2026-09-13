@@ -1,0 +1,197 @@
+---
+openapi: 3.0.4
+info:
+  title: Coffeetamine Notification API
+  description: |
+    In-app notification inbox (ping received, match created) and push-device token
+    registry (FCM / APNs) for outbound push delivery.
+  version: 1.0.0
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://localhost:8443
+    description: Local development server
+
+tags:
+  - name: notifications
+  - name: notification-devices
+
+paths:
+  /api/notifications:
+    get:
+      tags:
+        - notifications
+      summary: List my notifications
+      description: "Paginated inbox for the authenticated user, newest first by default."
+      operationId: listNotifications
+      x-spring-paginated: true
+      parameters:
+        - name: isRead
+          in: query
+          description: If provided, filter to read (true) or unread (false) only
+          schema:
+            type: boolean
+        - $ref: "common.yaml#/components/parameters/PageNumber"
+        - $ref: "common.yaml#/components/parameters/PageSize"
+        - $ref: "common.yaml#/components/parameters/Sort"
+      responses:
+        "200":
+          description: Inbox page
+          content:
+            application/json:
+              schema:
+                $ref: "notification-schemas.yaml#/components/schemas/NotificationListResponse"
+        "401":
+          $ref: "common.yaml#/components/responses/Unauthorized"
+        default:
+          $ref: "common.yaml#/components/responses/default"
+
+  /api/notifications/unread-count:
+    get:
+      tags:
+        - notifications
+      summary: Get unread count
+      description: "Returns the number of unread notifications for the badge."
+      operationId: getUnreadNotificationCount
+      responses:
+        "200":
+          description: Unread count
+          content:
+            application/json:
+              schema:
+                $ref: "notification-schemas.yaml#/components/schemas/UnreadCountResponse"
+        "401":
+          $ref: "common.yaml#/components/responses/Unauthorized"
+        default:
+          $ref: "common.yaml#/components/responses/default"
+
+  /api/notifications/{notificationId}/read:
+    put:
+      tags:
+        - notifications
+      summary: Mark a notification as read
+      operationId: markNotificationRead
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            example: "123e4567-e89b-12d3-a456-426614174000"
+      responses:
+        "200":
+          description: Notification marked read
+          content:
+            application/json:
+              schema:
+                $ref: "notification-schemas.yaml#/components/schemas/Notification"
+        "401":
+          $ref: "common.yaml#/components/responses/Unauthorized"
+        "403":
+          $ref: "common.yaml#/components/responses/Forbidden"
+        "404":
+          $ref: "common.yaml#/components/responses/NotFound"
+        default:
+          $ref: "common.yaml#/components/responses/default"
+
+  /api/notifications/read-all:
+    put:
+      tags:
+        - notifications
+      summary: Mark all my notifications as read
+      operationId: markAllNotificationsRead
+      responses:
+        "204":
+          description: All notifications marked read
+        "401":
+          $ref: "common.yaml#/components/responses/Unauthorized"
+        default:
+          $ref: "common.yaml#/components/responses/default"
+
+  /api/notifications/devices:
+    get:
+      tags:
+        - notification-devices
+      summary: List my registered devices
+      description: "Returns the authenticated user's registered push devices, newest first by default."
+      operationId: listMyDevices
+      x-spring-paginated: true
+      parameters:
+        - $ref: "common.yaml#/components/parameters/PageNumber"
+        - $ref: "common.yaml#/components/parameters/PageSize"
+        - $ref: "common.yaml#/components/parameters/Sort"
+      responses:
+        "200":
+          description: Registered devices
+          content:
+            application/json:
+              schema:
+                $ref: "notification-schemas.yaml#/components/schemas/DeviceListResponse"
+        "401":
+          $ref: "common.yaml#/components/responses/Unauthorized"
+        default:
+          $ref: "common.yaml#/components/responses/default"
+    post:
+      tags:
+        - notification-devices
+      summary: Register a push device
+      description: |
+        Registers (or upserts by `platform` + `token`) a push-device token for the
+        authenticated user. Re-registering the same token refreshes its `updatedAt`.
+      operationId: registerDevice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "notification-schemas.yaml#/components/schemas/RegisterDeviceRequest"
+      responses:
+        "201":
+          description: Device registered (or refreshed)
+          content:
+            application/json:
+              schema:
+                $ref: "notification-schemas.yaml#/components/schemas/Device"
+        "400":
+          $ref: "common.yaml#/components/responses/BadRequest"
+        "401":
+          $ref: "common.yaml#/components/responses/Unauthorized"
+        default:
+          $ref: "common.yaml#/components/responses/default"
+
+  /api/notifications/devices/{deviceId}:
+    delete:
+      tags:
+        - notification-devices
+      summary: Unregister a push device
+      operationId: unregisterDevice
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            example: "123e4567-e89b-12d3-a456-426614174000"
+      responses:
+        "204":
+          description: Device unregistered
+        "401":
+          $ref: "common.yaml#/components/responses/Unauthorized"
+        "403":
+          $ref: "common.yaml#/components/responses/Forbidden"
+        "404":
+          $ref: "common.yaml#/components/responses/NotFound"
+        default:
+          $ref: "common.yaml#/components/responses/default"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      $ref: "common.yaml#/components/securitySchemes/bearerAuth"
+
+security:
+  - bearerAuth: []

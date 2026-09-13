@@ -1,0 +1,380 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>4.1.0</version>
+    <relativePath/>
+  </parent>
+
+  <groupId>ua.coffeetamine</groupId>
+  <artifactId>coffeetamine</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
+  <packaging>pom</packaging>
+  <name>Coffeetamine</name>
+  <description>Location-based social discovery for coffee micro-encounters</description>
+
+  <modules>
+    <module>common</module>
+    <module>user</module>
+    <module>interests</module>
+    <module>presence</module>
+    <module>mood-board</module>
+    <module>discovery</module>
+    <module>ping</module>
+    <module>notification</module>
+    <module>main</module>
+  </modules>
+
+  <properties>
+    <java.version>25</java.version>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <!-- Not managed by Spring Boot BOM -->
+    <mapstruct.version>1.6.3</mapstruct.version>
+    <springdoc.version>3.0.3</springdoc.version>
+    <openapi-generator-maven-plugin.version>7.23.0</openapi-generator-maven-plugin.version>
+    <spotless-maven-plugin.version>3.7.0</spotless-maven-plugin.version>
+    <google-java-format.version>1.33.0</google-java-format.version>
+    <maven-checkstyle-plugin.version>3.6.0</maven-checkstyle-plugin.version>
+    <checkstyle.version>13.4.2</checkstyle.version>
+    <mockito-maven-plugin.version>1.0.0</mockito-maven-plugin.version>
+    <archunit-junit5.version>1.4.2</archunit-junit5.version>
+    <jakarta.enterprise.cdi-api.version>5.0.0-M1</jakarta.enterprise.cdi-api.version>
+    <spring-modulith.version>2.1.0</spring-modulith.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <!-- Spring Modulith — module model, JDBC event publication registry, observability. -->
+      <dependency>
+        <groupId>org.springframework.modulith</groupId>
+        <artifactId>spring-modulith-bom</artifactId>
+        <version>${spring-modulith.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <!-- Not managed by Spring Boot BOM. -->
+      <dependency>
+        <groupId>com.tngtech.archunit</groupId>
+        <artifactId>archunit-junit5</artifactId>
+        <version>${archunit-junit5.version}</version>
+        <scope>test</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <!-- Inherited by all modules -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter</artifactId>
+    </dependency>
+
+    <!-- Every module is an @ApplicationModule; boundaries verified by ApplicationModules.verify(). -->
+    <dependency>
+      <groupId>org.springframework.modulith</groupId>
+      <artifactId>spring-modulith-starter-core</artifactId>
+    </dependency>
+    <!-- @ApplicationModuleListener (org.springframework.modulith.events) for async event reactions
+         (ping → notification). The durable JDBC registry that backs it lives in main (starter-jdbc). -->
+    <dependency>
+      <groupId>org.springframework.modulith</groupId>
+      <artifactId>spring-modulith-events-api</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.projectlombok</groupId>
+      <artifactId>lombok</artifactId>
+      <optional>true</optional>
+    </dependency>
+
+    <dependency>
+      <groupId>org.jspecify</groupId>
+      <artifactId>jspecify</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.jetbrains.kotlin</groupId>
+      <artifactId>kotlin-stdlib</artifactId>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>jakarta.enterprise</groupId>
+      <artifactId>jakarta.enterprise.cdi-api</artifactId>
+      <version>${jakarta.enterprise.cdi-api.version}</version>
+      <scope>provided</scope>
+    </dependency>
+
+    <!-- Test -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.security</groupId>
+      <artifactId>spring-security-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers-junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers-postgresql</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-testcontainers</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-compiler-plugin</artifactId>
+          <configuration>
+            <release>${java.version}</release>
+            <showWarnings>true</showWarnings>
+            <showDeprecation>true</showDeprecation>
+            <failOnWarning>false</failOnWarning>
+            <compilerArgs>
+              <arg>-Xlint:all</arg>
+              <arg>-Xlint:-processing</arg>
+              <arg>-Xlint:-serial</arg>
+            </compilerArgs>
+            <annotationProcessorPaths>
+              <path>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>${lombok.version}</version>
+              </path>
+              <path>
+                <groupId>org.mapstruct</groupId>
+                <artifactId>mapstruct-processor</artifactId>
+                <version>${mapstruct.version}</version>
+              </path>
+              <path>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-configuration-processor</artifactId>
+              </path>
+              <path>
+                <groupId>org.hibernate.orm</groupId>
+                <artifactId>hibernate-jpamodelgen</artifactId>
+                <version>${hibernate.version}</version>
+              </path>
+            </annotationProcessorPaths>
+          </configuration>
+        </plugin>
+
+        <plugin>
+          <groupId>org.openapitools</groupId>
+          <artifactId>openapi-generator-maven-plugin</artifactId>
+          <version>${openapi-generator-maven-plugin.version}</version>
+          <configuration>
+            <generatorName>spring</generatorName>
+            <enablePostProcessFile>true</enablePostProcessFile>
+            <generateModelDocumentation>false</generateModelDocumentation>
+            <configOptions>
+              <documentationProvider>source</documentationProvider>
+              <interfaceOnly>true</interfaceOnly>
+              <useTags>true</useTags>
+              <useSpringBoot4>true</useSpringBoot4>
+              <useJackson3>true</useJackson3>
+              <openApiNullable>false</openApiNullable>
+              <useEnumCaseInsensitive>false</useEnumCaseInsensitive>
+              <containerDefaultToNull>false</containerDefaultToNull>
+              <hideGenerationTimestamp>true</hideGenerationTimestamp>
+              <useSwaggerUI>false</useSwaggerUI>
+              <skipDefaultInterface>true</skipDefaultInterface>
+            </configOptions>
+            <generateAliasAsModel>true</generateAliasAsModel>
+            <typeMappings>
+              <typeMapping>OffsetDateTime=Instant</typeMapping>
+              <typeMapping>LocalDateTime=Instant</typeMapping>
+            </typeMappings>
+            <importMappings>
+              <importMapping>Instant=java.time.Instant</importMapping>
+              <importMapping>OffsetDateTime=java.time.Instant</importMapping>
+              <importMapping>LocalDateTime=java.time.Instant</importMapping>
+              <importMapping>Pageable=org.springframework.data.domain.Pageable</importMapping>
+              <importMapping>Nullable=org.jspecify.annotations.Nullable</importMapping>
+            </importMappings>
+          </configuration>
+        </plugin>
+
+        <plugin>
+          <groupId>org.codehaus.mojo</groupId>
+          <artifactId>build-helper-maven-plugin</artifactId>
+          <executions>
+            <execution>
+              <id>add-generated-source</id>
+              <goals>
+                <goal>add-source</goal>
+              </goals>
+              <phase>generate-sources</phase>
+              <configuration>
+                <sources>
+                  <source>${project.build.directory}/generated-sources/openapi/src/main/java</source>
+                </sources>
+              </configuration>
+            </execution>
+          </executions>
+        </plugin>
+
+        <plugin>
+          <groupId>org.springframework.boot</groupId>
+          <artifactId>spring-boot-maven-plugin</artifactId>
+          <configuration>
+            <mainClass>ua.coffeetamine.CoffeetamineApplication</mainClass>
+          </configuration>
+        </plugin>
+
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-checkstyle-plugin</artifactId>
+          <version>${maven-checkstyle-plugin.version}</version>
+          <configuration>
+            <configLocation>${maven.multiModuleProjectDirectory}/checkstyle.xml</configLocation>
+            <suppressionsLocation>${maven.multiModuleProjectDirectory}/checkstyle-suppressions.xml</suppressionsLocation>
+            <suppressionsFileExpression>checkstyle.suppressions.file</suppressionsFileExpression>
+            <failOnViolation>false</failOnViolation>
+            <violationSeverity>warning</violationSeverity>
+            <consoleOutput>true</consoleOutput>
+            <includeTestSourceDirectory>false</includeTestSourceDirectory>
+          </configuration>
+          <dependencies>
+            <dependency>
+              <groupId>com.puppycrawl.tools</groupId>
+              <artifactId>checkstyle</artifactId>
+              <version>${checkstyle.version}</version>
+            </dependency>
+          </dependencies>
+        </plugin>
+
+        <!-- Mockito agent — Java 21+ requires explicit agent attachment for
+                     mockito-inline. This plugin sets it up via @{argLine}. -->
+        <plugin>
+          <groupId>dev.jeschke.maven.mockito</groupId>
+          <artifactId>mockito-maven-plugin</artifactId>
+          <version>${mockito-maven-plugin.version}</version>
+          <executions>
+            <execution>
+              <id>prepare-agent</id>
+              <goals>
+                <goal>prepareAgent</goal>
+              </goals>
+            </execution>
+          </executions>
+        </plugin>
+
+        <!-- Surefire / Failsafe must propagate @{argLine} so the Mockito agent
+                     is actually attached to the test JVM. -->
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <configuration>
+            <argLine>@{argLine}</argLine>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-failsafe-plugin</artifactId>
+          <configuration>
+            <argLine>@{argLine}</argLine>
+          </configuration>
+          <executions>
+            <execution>
+              <id>integration-test</id>
+              <goals>
+                <goal>integration-test</goal>
+                <goal>verify</goal>
+              </goals>
+            </execution>
+          </executions>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+
+    <plugins>
+      <!-- Mockito agent must be in <plugins> (not just management) to actually run. -->
+      <plugin>
+        <groupId>dev.jeschke.maven.mockito</groupId>
+        <artifactId>mockito-maven-plugin</artifactId>
+      </plugin>
+
+      <plugin>
+        <groupId>com.diffplug.spotless</groupId>
+        <artifactId>spotless-maven-plugin</artifactId>
+        <version>${spotless-maven-plugin.version}</version>
+        <configuration>
+          <lineEndings>UNIX</lineEndings>
+          <java>
+            <includes>
+              <include>**/*.java</include>
+            </includes>
+            <excludes>
+              <exclude>**/target/**</exclude>
+              <exclude>**/generated-sources/**</exclude>
+              <exclude>**/openapi/**</exclude>
+            </excludes>
+            <googleJavaFormat>
+              <version>${google-java-format.version}</version>
+              <style>GOOGLE</style>
+            </googleJavaFormat>
+            <importOrder>
+              <order>java,javax,jakarta,org.springframework,org.springframework.*,ua.coffeetamine,lombok</order>
+            </importOrder>
+            <removeUnusedImports/>
+          </java>
+          <pom>
+            <includes>
+              <include>**/pom.xml</include>
+            </includes>
+            <excludes>
+              <exclude>**/target/**</exclude>
+            </excludes>
+            <sortPom>
+              <encoding>UTF-8</encoding>
+            </sortPom>
+          </pom>
+        </configuration>
+        <executions>
+          <execution>
+            <id>spotless-apply</id>
+            <goals>
+              <goal>apply</goal>
+            </goals>
+            <phase>process-sources</phase>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+
+  <profiles>
+    <profile>
+      <id>dev-fast</id>
+      <properties>
+        <maven.test.skip>true</maven.test.skip>
+        <spotless.skip>true</spotless.skip>
+        <checkstyle.skip>true</checkstyle.skip>
+        <maven.javadoc.skip>true</maven.javadoc.skip>
+      </properties>
+    </profile>
+  </profiles>
+</project>
